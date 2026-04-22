@@ -338,13 +338,6 @@ option { background: var(--surface-2); color: var(--text); }
   gap: 24px;
 }
 
-@media (max-width: 800px) {
-  .two-col { grid-template-columns: 1fr; }
-  .sidebar { width: 64px; }
-  .sidebar .brand-name, .sidebar .nav-label, .sidebar-footer .user-info { display: none; }
-  .sidebar-brand { padding: 0 16px 20px; justify-content: center; }
-  .nav-item { padding: 11px; justify-content: center; }
-}
 
 /* ─── Forms ──────────────────────────────────────────────────────── */
 .form-group {
@@ -1258,4 +1251,451 @@ option { background: var(--surface-2); color: var(--text); }
 .acc-dropdown-delete:hover {
   background: rgba(239, 68, 68, 0.1);
   color: var(--red);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE STYLES  (≤ 768px)
+   ═══════════════════════════════════════════════════════════════════ */
+ 
+/* ── Mobile top bar ─────────────────────────────────────────────── */
+.mobile-topbar {
+  display: none; /* hidden on desktop */
+}
+ 
+/* ── Mobile bottom nav ──────────────────────────────────────────── */
+.mobile-bottom-nav {
+  display: none; /* hidden on desktop */
+}
+ 
+@media (max-width: 768px) {
+ 
+  /* ── Override desktop shell ── */
+  .app-shell {
+    flex-direction: column;
+    height: 100dvh;          /* dynamic viewport height — handles browser chrome */
+    overflow: hidden;
+  }
+ 
+  /* ── Hide desktop sidebar completely ── */
+  .sidebar {
+    display: none;
+  }
+ 
+  /* ── Show mobile top bar ── */
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 56px;
+    min-height: 56px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 50;
+  }
+ 
+  .mobile-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+ 
+  .mobile-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+ 
+  .avatar-sm {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+ 
+  /* ── Main content scrolls between topbar and bottom nav ── */
+  .main-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* leave space for bottom nav */
+    padding-bottom: 72px;
+    -webkit-overflow-scrolling: touch;
+  }
+ 
+  /* ── Show mobile bottom nav ── */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    z-index: 100;
+    /* safe area for iPhone home bar */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+ 
+  .mobile-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    padding: 8px 4px;
+    transition: color 0.2s;
+    /* larger tap target */
+    min-height: 48px;
+  }
+ 
+  .mobile-nav-item.active {
+    color: var(--accent);
+  }
+ 
+  .mobile-nav-item.active .mobile-nav-icon {
+    background: rgba(99,102,241,0.12);
+    border-radius: 12px;
+  }
+ 
+  .mobile-nav-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    transition: background 0.2s;
+  }
+ 
+  .mobile-nav-label {
+    font-size: 10px;
+    font-weight: 600;
+  }
+ 
+  /* ── Page padding on mobile ── */
+  .page {
+    padding: 16px;
+    gap: 16px;
+    max-width: 100%;
+  }
+ 
+  /* ── Page header stacks on mobile ── */
+  .page-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+ 
+  .page-title {
+    font-size: 22px;
+  }
+ 
+  .date-badge {
+    font-size: 11px;
+    padding: 6px 10px;
+    align-self: flex-start;
+  }
+ 
+  /* ── Single column grid ── */
+  .two-col {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+ 
+  /* ── Stat grid: 2 columns on mobile ── */
+  .stat-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+ 
+  .stat-card {
+    padding: 14px;
+    gap: 10px;
+    border-radius: var(--radius-md);
+  }
+ 
+  .stat-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+ 
+  .stat-value {
+    font-size: 18px;
+  }
+ 
+  .stat-label {
+    font-size: 10px;
+  }
+ 
+  /* ── Cards ── */
+  .card {
+    padding: 16px;
+    border-radius: var(--radius-md);
+  }
+ 
+  .card-title {
+    font-size: 15px;
+    margin-bottom: 14px;
+  }
+ 
+  .card-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+ 
+  .card-header-row .card-title { margin-bottom: 0; }
+ 
+  /* ── Inputs — bigger touch targets ── */
+  .input {
+    padding: 12px 14px;
+    font-size: 16px; /* prevents iOS zoom on focus */
+    border-radius: var(--radius-sm);
+  }
+ 
+  .input.compact {
+    width: 100%;
+    min-width: unset;
+  }
+ 
+  /* ── Buttons — bigger tap targets ── */
+  .btn-primary {
+    padding: 13px 20px;
+    font-size: 15px;
+    width: 100%;
+  }
+ 
+  .btn-cancel {
+    padding: 13px 16px;
+    font-size: 14px;
+  }
+ 
+  /* ── Type toggle ── */
+  .type-toggle {
+    gap: 6px;
+  }
+ 
+  .toggle-btn {
+    padding: 12px 10px;
+    font-size: 14px;
+  }
+ 
+  /* ── Entry rows ── */
+  .entry-row {
+    padding: 12px 12px;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+ 
+  .entry-note { font-size: 13px; }
+  .entry-meta { font-size: 10px; }
+ 
+  .entry-amount {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+ 
+  .entry-right { gap: 8px; }
+ 
+  .del-btn, .edit-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+ 
+  /* ── Pie chart ── */
+  .pie-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+ 
+  .pie-svg {
+    width: 140px;
+    height: 140px;
+    align-self: center;
+  }
+ 
+  .pie-legend {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+  }
+ 
+  /* ── Health metric cards ── */
+  .metric-card {
+    flex-direction: row;
+    align-items: center;
+  }
+ 
+  .metric-icon {
+    font-size: 20px;
+    width: 36px;
+  }
+ 
+  .metric-input-row {
+    gap: 8px;
+  }
+ 
+  /* ── Health table — horizontal scroll ── */
+  .health-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
+ 
+  .health-table {
+    min-width: 600px;
+  }
+ 
+  /* ── Todo items ── */
+  .todo-item {
+    padding: 12px;
+    gap: 10px;
+  }
+ 
+  .todo-text { font-size: 13px; }
+  .todo-meta { gap: 8px; }
+ 
+  .check-btn {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+  }
+ 
+  /* ── Priority buttons ── */
+  .priority-row {
+    gap: 6px;
+  }
+ 
+  .priority-btn {
+    padding: 10px 6px;
+    font-size: 12px;
+  }
+ 
+  /* ── Filter chips ── */
+  .filter-chips {
+    gap: 6px;
+    margin-top: 10px;
+  }
+ 
+  .filter-chip {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+ 
+  /* ── Progress card ── */
+  .progress-pct {
+    font-size: 18px;
+  }
+ 
+  /* ── Accounts grid ── */
+  .accounts-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+ 
+  .account-card {
+    padding: 12px;
+  }
+ 
+  .account-balance {
+    font-size: 15px;
+  }
+ 
+  .add-acc-form {
+    flex-direction: column;
+    gap: 8px;
+  }
+ 
+  .add-acc-form .input {
+    width: 100%;
+  }
+ 
+  /* ── Category select row ── */
+  .cat-select-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+ 
+  .btn-manage-cats {
+    width: 100%;
+    text-align: center;
+    padding: 10px;
+  }
+ 
+  /* ── Modal ── */
+  .modal-card {
+    margin: 16px;
+    padding: 20px;
+    max-height: 85vh;
+    border-radius: var(--radius-md);
+  }
+ 
+  /* ── Login card ── */
+  .login-card {
+    margin: 16px;
+    padding: 28px 20px;
+    border-radius: var(--radius-md);
+  }
+ 
+  .login-title {
+    font-size: 22px;
+  }
+ 
+  /* ── Misc ── */
+  .empty-msg {
+    padding: 20px 0;
+    font-size: 13px;
+  }
+ 
+  .btn-add-acc {
+    width: 100%;
+    text-align: center;
+    padding: 10px;
+  }
+ 
+  /* Scrollbar hidden on mobile */
+  .main-content::-webkit-scrollbar { display: none; }
+}
+ 
+/* ── Extra small screens (≤ 380px) ── */
+@media (max-width: 380px) {
+  .stat-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+ 
+  .stat-card {
+    padding: 10px;
+    gap: 8px;
+  }
+ 
+  .stat-value { font-size: 16px; }
+ 
+  .page-title { font-size: 20px; }
+ 
+  .accounts-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+ 
+  .pie-legend {
+    grid-template-columns: 1fr;
+  }
 }
