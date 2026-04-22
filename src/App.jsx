@@ -4,23 +4,24 @@ import HealthMonitor from "./components/HealthMonitor";
 import TodoList from "./components/TodoList";
 import Sidebar from "./components/Sidebar";
 import Login from "./components/Login";
+import pb from "./pb";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("expense");
 
+  // PocketBase automatically persists auth in localStorage via pb.authStore
   const [user, setUser] = useState(() => {
-    try {
-      const session = localStorage.getItem("nexus-session");
-      return session ? JSON.parse(session) : null;
-    } catch {
-      return null;
+    if (pb.authStore.isValid) {
+      const record = pb.authStore.model;
+      return { name: record.name, email: record.email, id: record.id };
     }
+    return null;
   });
 
   const handleLogin = (userData) => setUser(userData);
 
   const handleLogout = () => {
-    localStorage.removeItem("nexus-session");
+    pb.authStore.clear(); // clears PocketBase session
     setUser(null);
   };
 
@@ -30,9 +31,9 @@ export default function App() {
     <div className="app-shell">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={handleLogout} />
       <main className="main-content">
-        {activeTab === "expense" && <ExpenseTracker userEmail={user.email} />}
-        {activeTab === "health" && <HealthMonitor userEmail={user.email} />}
-        {activeTab === "todo" && <TodoList userEmail={user.email} />}
+        {activeTab === "expense" && <ExpenseTracker userId={user.id} />}
+        {activeTab === "health"  && <HealthMonitor  userEmail={user.email} />}
+        {activeTab === "todo"    && <TodoList        userEmail={user.email} />}
       </main>
     </div>
   );

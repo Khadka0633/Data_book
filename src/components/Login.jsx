@@ -1,13 +1,5 @@
 import { useState } from "react";
-
-// Simple SHA-256 hash using Web Crypto API (built into all modern browsers)
-async function hashPassword(password) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+import pb from "../pb";
 
 export default function Login({ onLogin }) {
   const [isRegister, setIsRegister] = useState(false);
@@ -17,48 +9,53 @@ export default function Login({ onLogin }) {
 
   const handleSubmit = async () => {
     setError("");
+    setLoading(true);
 
-    if (isRegister) {
-      if (!form.name.trim()) return setError("Please enter your name.");
-      if (!form.email.trim()) return setError("Please enter your email.");
-      if (form.password.length < 6) return setError("Password must be at least 6 characters.");
+    try {
+      if (isRegister) {
+        if (!form.name.trim()) { setLoading(false); return setError("Please enter your name."); }
+        if (!form.email.trim()) { setLoading(false); return setError("Please enter your email."); }
+        if (form.password.length < 8) { setLoading(false); return setError("Password must be at least 8 characters."); }
 
-      const existing = JSON.parse(localStorage.getItem("nexus-users") || "[]");
-      if (existing.find((u) => u.email === form.email)) {
-        return setError("An account with this email already exists.");
+        // Create user in PocketBase
+        await pb.collection("users").create({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          password: form.password,
+          passwordConfirm: form.password,
+        });
+
+        // Auto login after register
+        const authData = await pb.collection("users").authWithPassword(
+          form.email.trim(),
+          form.password
+        );
+
+        onLogin({ name: authData.record.name, email: authData.record.email, id: authData.record.id });
+
+      } else {
+        if (!form.email.trim()) { setLoading(false); return setError("Please enter your email."); }
+        if (!form.password) { setLoading(false); return setError("Please enter your password."); }
+
+        const authData = await pb.collection("users").authWithPassword(
+          form.email.trim(),
+          form.password
+        );
+
+        onLogin({ name: authData.record.name, email: authData.record.email, id: authData.record.id });
       }
 
-      // ✅ Hash password before storing — plain text never touches localStorage
-      const hashedPassword = await hashPassword(form.password);
-      const newUser = {
-        name: form.name.trim(),
-        email: form.email.trim(),
-        password: hashedPassword, // stored as hash, not plain text
-      };
-
-      localStorage.setItem("nexus-users", JSON.stringify([...existing, newUser]));
-      // ✅ Session only stores name + email, never the password
-      localStorage.setItem("nexus-session", JSON.stringify({ name: newUser.name, email: newUser.email }));
-
-      setLoading(true);
-      setTimeout(() => onLogin({ name: newUser.name, email: newUser.email }), 600);
-
-    } else {
-      if (!form.email.trim()) return setError("Please enter your email.");
-      if (!form.password) return setError("Please enter your password.");
-
-      const users = JSON.parse(localStorage.getItem("nexus-users") || "[]");
-
-      // ✅ Hash the entered password and compare against stored hash
-      const hashedPassword = await hashPassword(form.password);
-      const user = users.find((u) => u.email === form.email && u.password === hashedPassword);
-
-      if (!user) return setError("Invalid email or password.");
-
-      // ✅ Session only stores name + email
-      localStorage.setItem("nexus-session", JSON.stringify({ name: user.name, email: user.email }));
-      setLoading(true);
-      setTimeout(() => onLogin({ name: user.name, email: user.email }), 600);
+    } catch (err) {
+      const msg = err?.response?.message || err?.message || "";
+      if (msg.toLowerCase().includes("failed to authenticate") || msg.toLowerCase().includes("invalid")) {
+        setError("Invalid email or password.");
+      } else if (msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("unique")) {
+        setError("An account with this email already exists.");
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -129,7 +126,7 @@ export default function Login({ onLogin }) {
             className={`btn-primary login-btn ${loading ? "loading" : ""}`}
             disabled={loading}
           >
-            {loading ? "Signing in..." : isRegister ? "Create Account" : "Sign In"}
+            {loading ? "Please wait..." : isRegister ? "Create Account" : "Sign In"}
           </button>
         </div>
 

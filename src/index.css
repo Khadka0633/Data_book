@@ -1200,3 +1200,62 @@ option { background: var(--surface-2); color: var(--text); }
 .del-btn-confirm:hover { background: rgba(249,115,22,0.28); color: var(--orange); }
  
 
+/* ── Account menu button (⋯) ── */
+.acc-menu-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  line-height: 1;
+  letter-spacing: 1px;
+}
+
+.acc-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+/* ── Dropdown ── */
+.acc-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+  min-width: 120px;
+  overflow: hidden;
+  animation: fadeIn 0.12s ease;
+}
+
+.acc-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-soft);
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.acc-dropdown-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.acc-dropdown-delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--red);
+}
