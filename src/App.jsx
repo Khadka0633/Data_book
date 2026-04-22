@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ExpenseTracker from "./components/ExpenseTracker";
 import HealthMonitor from "./components/HealthMonitor";
 import TodoList from "./components/TodoList";
@@ -9,7 +9,6 @@ import pb from "./pb";
 export default function App() {
   const [activeTab, setActiveTab] = useState("expense");
 
-  // PocketBase automatically persists auth in localStorage via pb.authStore
   const [user, setUser] = useState(() => {
     if (pb.authStore.isValid) {
       const record = pb.authStore.model;
@@ -18,10 +17,23 @@ export default function App() {
     return null;
   });
 
+  // ✅ INSIDE the component — this is what was crashing before
+  useEffect(() => {
+    console.log("authStore valid:", pb.authStore.isValid);
+    console.log("authStore model:", pb.authStore.model);
+
+    if (pb.authStore.isValid) {
+      pb.collection("users").authRefresh().catch(() => {
+        pb.authStore.clear();
+        setUser(null);
+      });
+    }
+  }, []);
+
   const handleLogin = (userData) => setUser(userData);
 
   const handleLogout = () => {
-    pb.authStore.clear(); // clears PocketBase session
+    pb.authStore.clear();
     setUser(null);
   };
 
@@ -29,11 +41,16 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={handleLogout} />
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        user={user}
+        onLogout={handleLogout}
+      />
       <main className="main-content">
         {activeTab === "expense" && <ExpenseTracker userId={user.id} />}
-        {activeTab === "health"  && <HealthMonitor  userEmail={user.email} />}
-        {activeTab === "todo"    && <TodoList        userEmail={user.email} />}
+        {activeTab === "health"  && <HealthMonitor  userId={user.id} />}
+        {activeTab === "todo"    && <TodoList        userId={user.id} />}
       </main>
     </div>
   );

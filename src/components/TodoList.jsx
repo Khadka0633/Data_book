@@ -37,7 +37,7 @@ export default function TodoList({ userId }) {
     setError("");
     try {
       const records = await pb.collection("todos").getFullList({
-        filter: `userId = "${userId}"`,
+        filter: `userId = '${userId}'`,
         sort:   "-created",
       });
       setTodos(records);

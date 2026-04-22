@@ -100,7 +100,7 @@ export default function HealthMonitor({ userId }) {
     setError("");
     try {
       const records = await pb.collection("health_logs").getFullList({
-        filter: `userId = "${userId}"`,
+        filter: `userId = '${userId}'`,
         sort: "-date",
       });
       setLogs(records);
