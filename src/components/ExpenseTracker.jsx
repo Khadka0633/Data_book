@@ -2,35 +2,35 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import pb from "../pb";
 import TransferModal from "./TransferModal";
 
+// ─── Account Groups ───────────────────────────────────────────────
+const ACCOUNT_GROUPS = [
+  { key: "savings",    label: "Savings",     color: "#3B6D11", bg: "#EAF3DE" },
+  { key: "cash",       label: "Cash",        color: "#854F0B", bg: "#FAEEDA" },
+  { key: "investment", label: "Investments", color: "#534AB7", bg: "#EEEDFE" },
+  { key: "loan",       label: "Loans",       color: "#A32D2D", bg: "#FCEBEB" },
+  { key: "bank",      label: "Bank",       color: "#5F5E5A", bg: "#F1EFE8" },
+];
+
 // ─── Default Categories ───────────────────────────────────────────
 const DEFAULT_EXPENSE_CATEGORIES = [
   { name: "Food",          color: "#f97316" },
   { name: "Transport",     color: "#3b82f6" },
-  { name: "Shopping",      color: "#a855f7" },
-  { name: "Bills",         color: "#ef4444" },
   { name: "Health",        color: "#22c55e" },
-  { name: "Entertainment", color: "#eab308" },
-  { name: "Education",     color: "#06b6d4" },
   { name: "Rent",          color: "#f43f5e" },
-  { name: "Transfer",      color: "#6366f1" },
-  { name: "Other",         color: "#94a3b8" },
+
+ 
 ];
 
 const DEFAULT_INCOME_CATEGORIES = [
   { name: "Salary",     color: "#22c55e" },
   { name: "Freelance",  color: "#10b981" },
-  { name: "Business",   color: "#14b8a6" },
   { name: "Investment", color: "#6366f1" },
-  { name: "Gift",       color: "#ec4899" },
-  { name: "Bonus",      color: "#f97316" },
-  { name: "Transfer",   color: "#6366f1" },
-  { name: "Other",      color: "#94a3b8" },
 ];
 
 const DEFAULT_ACCOUNTS = [
-  { name: "Cash",         icon: "💵", color: "#22c55e" },
-  { name: "eSewa",        icon: "📱", color: "#6366f1" },
-  { name: "Khalti",       icon: "💜", color: "#a855f7" },
+  { name: "Cash",   icon: "💵", color: "#22c55e", group: "cash" },
+  { name: "eSewa",  icon: "📱", color: "#6366f1", group: "cash" },
+  { name: "Khalti", icon: "💜", color: "#a855f7", group: "cash" },
 ];
 
 function formatDate(d) {
@@ -105,9 +105,9 @@ function AccountCard({ account, balance, onClick, isSelected, onEdit, onDelete }
     >
       <div className="account-card-top">
         <span className="account-icon">{account.icon}</span>
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {isSelected && <span className="account-selected-pip" />}
-          <div ref={menuRef} style={{ position:"relative" }} onClick={e => e.stopPropagation()}>
+          <div ref={menuRef} style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
             <button className="acc-menu-btn" onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}>⋯</button>
             {menuOpen && (
               <div className="acc-dropdown">
@@ -126,9 +126,243 @@ function AccountCard({ account, balance, onClick, isSelected, onEdit, onDelete }
   );
 }
 
+// ─── Account Groups Component ─────────────────────────────────────
+function AccountGroups({ accounts, accountBalances, selectedAcc, setSelectedAcc, onEdit, onDelete, onShowAddAcc, onShowTransfer }) {
+  const grandTotal = accounts.reduce((s, a) => s + (accountBalances[a.id] || 0), 0);
+
+  return (
+    <div className="card">
+      <div className="card-header-row">
+        <h2 className="card-title">Accounts</h2>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {selectedAcc && (
+            <button className="filter-chip active" onClick={() => setSelectedAcc(null)}>Clear Filter</button>
+          )}
+          <button className="btn-transfer" onClick={onShowTransfer}>↔ Transfer</button>
+          <button className="btn-add-acc" onClick={onShowAddAcc}>+ Add Account</button>
+        </div>
+      </div>
+
+      {/* Grand total */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        background: "var(--surface-2)", borderRadius: "var(--radius-md)",
+        padding: "12px 16px", marginBottom: 20,
+      }}>
+        <div>
+          <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 2 }}>Total net worth</p>
+          <p style={{ fontSize: 11, color: "var(--text-muted)", opacity: 0.7 }}>across all accounts</p>
+        </div>
+        <span style={{
+          fontSize: 20, fontWeight: 700,
+          color: grandTotal >= 0 ? "var(--green)" : "var(--red)",
+        }}>
+          {grandTotal >= 0 ? "+" : "−"}₹{Math.abs(grandTotal).toLocaleString()}
+        </span>
+      </div>
+
+      {/* Groups */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {ACCOUNT_GROUPS.map(grp => {
+          const grpAccounts = accounts.filter(a => a.group === grp.key);
+          if (grpAccounts.length === 0) return null;
+          const grpTotal = grpAccounts.reduce((s, a) => s + (accountBalances[a.id] || 0), 0);
+
+          return (
+            <div key={grp.key} style={{
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              overflow: "hidden",
+            }}>
+              {/* Group header */}
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "10px 14px",
+                background: grp.bg + "99",
+                borderBottom: "1px solid var(--border)",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: grp.color }}>{grp.label}</span>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    {grpAccounts.length} account{grpAccounts.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <span style={{
+                  fontWeight: 700, fontSize: 14,
+                  color: grpTotal >= 0 ? "var(--green)" : "var(--red)",
+                }}>
+                  {grpTotal >= 0 ? "+" : "−"}₹{Math.abs(grpTotal).toLocaleString()}
+                </span>
+              </div>
+
+              {/* Account cards */}
+              <div className="accounts-grid" style={{ padding: "10px" }}>
+                {grpAccounts.map(acc => (
+                  <AccountCard
+                    key={acc.id}
+                    account={acc}
+                    balance={accountBalances[acc.id] || 0}
+                    isSelected={selectedAcc === acc.id}
+                    onClick={() => setSelectedAcc(selectedAcc === acc.id ? null : acc.id)}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Icon Picker ──────────────────────────────────────────────────
+const ACCOUNT_ICONS = [
+  "🏦","💵","💳","📱","💜","💰","🏧","💹","📈","🪙",
+  "🏠","🚗","✈️","🎓","💊","🛒","⚡","🍔","🎮","💼",
+  "🏪","🌐","📦","🎁","💎","🔑","🏋️","🌱","🎯","🤝",
+];
+
+function IconPicker({ value, onChange }) {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(10, 1fr)",
+      gap: 4,
+      padding: "10px",
+      background: "var(--surface-2)",
+      borderRadius: "var(--radius-md)",
+      border: "1px solid var(--border)",
+    }}>
+      {ACCOUNT_ICONS.map(icon => (
+        <button
+          key={icon}
+          onClick={() => onChange(icon)}
+          style={{
+            fontSize: 20,
+            padding: "6px",
+            borderRadius: "var(--radius-sm)",
+            border: value === icon ? "2px solid var(--accent)" : "2px solid transparent",
+            background: value === icon ? "var(--accent)22" : "transparent",
+            cursor: "pointer",
+            lineHeight: 1,
+            transition: "all 0.15s",
+          }}
+          title={icon}
+        >
+          {icon}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Add Account Form ─────────────────────────────────────────────
+function AddAccountForm({ onSave, onCancel }) {
+  const [draft, setDraft] = useState({ name: "", icon: "🏦", color: "#6366f1", group: "cash" });
+  const [error, setError] = useState("");
+
+const handleSave = () => {
+  if (!draft.name.trim()) return setError("Account name cannot be empty.");
+
+  if (!draft.group) {
+    return setError("Please select a group.");
+  }
+
+  onSave({
+    ...draft,
+    name: draft.name.trim(),
+    group: draft.group || "cash",
+  });
+};
+
+  return (
+    <div className="card">
+      <h2 className="card-title" style={{ marginBottom: 16 }}>New Account</h2>
+
+      {/* Preview */}
+      <div style={{
+        background: "var(--surface-2)",
+        border: `2px solid ${draft.color}`,
+        borderRadius: "var(--radius-md)",
+        padding: "14px 16px",
+        display: "flex", alignItems: "center", gap: 14,
+        marginBottom: 16,
+        boxShadow: `0 0 16px ${draft.color}22`,
+      }}>
+        <span style={{ fontSize: 26 }}>{draft.icon || "🏦"}</span>
+        <div>
+          <p style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>{draft.name || "Account Name"}</p>
+          <p style={{ fontSize: 11, color: draft.color, marginTop: 2 }}>
+            {ACCOUNT_GROUPS.find(g => g.key === draft.group)?.label || "Group"}
+          </p>
+        </div>
+        <span style={{ marginLeft: "auto", fontWeight: 700, fontSize: 16, color: draft.color }}>₹0</span>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label className="input-label">Account Name</label>
+          <input
+            className="input"
+            placeholder="e.g. Bank Account"
+            value={draft.name}
+            onChange={e => { setDraft(d => ({ ...d, name: e.target.value })); setError(""); }}
+          />
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label className="input-label">Group</label>
+          <select
+            className="input"
+            value={draft.group}
+            onChange={e => setDraft(d => ({ ...d, group: e.target.value }))}
+          >
+            {ACCOUNT_GROUPS.map(g => (
+              <option key={g.key} value={g.key}>{g.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <label className="input-label">Icon</label>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>tap to select</span>
+          </div>
+          <IconPicker value={draft.icon} onChange={icon => setDraft(d => ({ ...d, icon }))} />
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label className="input-label">Color</label>
+          <input
+            type="color"
+            className="color-pick"
+            value={draft.color}
+            onChange={e => setDraft(d => ({ ...d, color: e.target.value }))}
+            style={{ width: "100%", height: 42 }}
+          />
+        </div>
+
+        {error && <p className="cat-error">{error}</p>}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          <button className="btn-primary" style={{ flex: 1 }} onClick={handleSave}>Save Account</button>
+          <button className="btn-cancel" onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Edit Account Modal ───────────────────────────────────────────
 function EditAccountModal({ account, onSave, onClose }) {
-  const [draft, setDraft] = useState({ name: account.name, icon: account.icon, color: account.color });
+  const [draft, setDraft] = useState({
+    name: account.name,
+    icon: account.icon,
+    color: account.color,
+    group: account.group || "cash",
+  });
   const [error, setError] = useState("");
 
   const handleSave = () => {
@@ -143,32 +377,60 @@ function EditAccountModal({ account, onSave, onClose }) {
           <h3 className="modal-title">✏️ Edit Account</h3>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <div style={{ background:"var(--surface-2)", border:`2px solid ${draft.color}`, borderRadius:"var(--radius-md)", padding:"16px", display:"flex", alignItems:"center", gap:14, boxShadow:`0 0 16px ${draft.color}33` }}>
-            <span style={{ fontSize:28 }}>{draft.icon || "🏦"}</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{
+            background: "var(--surface-2)", border: `2px solid ${draft.color}`,
+            borderRadius: "var(--radius-md)", padding: "16px",
+            display: "flex", alignItems: "center", gap: 14,
+            boxShadow: `0 0 16px ${draft.color}33`,
+          }}>
+            <span style={{ fontSize: 28 }}>{draft.icon || "🏦"}</span>
             <div>
-              <p style={{ fontWeight:700, fontSize:15, color:"var(--text)" }}>{draft.name || "Account Name"}</p>
-              <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>Preview</p>
+              <p style={{ fontWeight: 700, fontSize: 15, color: "var(--text)" }}>{draft.name || "Account Name"}</p>
+              <p style={{ fontSize: 11, color: draft.color, marginTop: 2 }}>
+                {ACCOUNT_GROUPS.find(g => g.key === draft.group)?.label || "Group"}
+              </p>
             </div>
-            <span style={{ marginLeft:"auto", fontFamily:"'Syne', sans-serif", fontWeight:700, fontSize:16, color:draft.color }}>₹0</span>
+            <span style={{ marginLeft: "auto", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: draft.color }}>₹0</span>
           </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <label className="input-label">Account Name</label>
-            <input className="input" placeholder="e.g. Bank Account" value={draft.name} onChange={e => { setDraft(d => ({ ...d, name: e.target.value })); setError(""); }} />
+            <input
+              className="input" placeholder="e.g. Bank Account" value={draft.name}
+              onChange={e => { setDraft(d => ({ ...d, name: e.target.value })); setError(""); }}
+            />
           </div>
-          <div style={{ display:"flex", gap:12 }}>
-            <div style={{ flex:1, display:"flex", flexDirection:"column", gap:8 }}>
-              <label className="input-label">Emoji Icon</label>
-              <input className="input" placeholder="e.g. 🏦" value={draft.icon} onChange={e => setDraft(d => ({ ...d, icon: e.target.value }))} />
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              <label className="input-label">Color</label>
-              <input type="color" className="color-pick" value={draft.color} onChange={e => setDraft(d => ({ ...d, color: e.target.value }))} style={{ width:50, height:42 }} />
-            </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label className="input-label">Group</label>
+            <select
+              className="input"
+              value={draft.group}
+              onChange={e => setDraft(d => ({ ...d, group: e.target.value }))}
+            >
+              {ACCOUNT_GROUPS.map(g => (
+                <option key={g.key} value={g.key}>{g.label}</option>
+              ))}
+            </select>
           </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label className="input-label">Icon</label>
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>tap to select</span>
+            </div>
+            <IconPicker value={draft.icon} onChange={icon => setDraft(d => ({ ...d, icon }))} />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label className="input-label">Color</label>
+            <input type="color" className="color-pick" value={draft.color} onChange={e => setDraft(d => ({ ...d, color: e.target.value }))} style={{ width: "100%", height: 42 }} />
+          </div>
+
           {error && <p className="cat-error">{error}</p>}
-          <div style={{ display:"flex", gap:8, marginTop:4 }}>
-            <button className="btn-primary" style={{ flex:1 }} onClick={handleSave}>Save Changes</button>
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <button className="btn-primary" style={{ flex: 1 }} onClick={handleSave}>Save Changes</button>
             <button className="btn-cancel" onClick={onClose}>Cancel</button>
           </div>
         </div>
@@ -186,24 +448,37 @@ function DeleteAccountModal({ account, linkedCount, onConfirmDelete, onReassignA
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3 className="modal-title" style={{ color:"var(--red)" }}>🗑 Delete Account</h3>
+          <h3 className="modal-title" style={{ color: "var(--red)" }}>🗑 Delete Account</h3>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          <div style={{ background:"var(--surface-2)", border:"1px solid var(--border)", borderRadius:"var(--radius-md)", padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ fontSize:24 }}>{account.icon}</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{
+            background: "var(--surface-2)", border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)", padding: "14px 16px",
+            display: "flex", alignItems: "center", gap: 12,
+          }}>
+            <span style={{ fontSize: 24 }}>{account.icon}</span>
             <div>
-              <p style={{ fontWeight:700, color:"var(--text)", fontSize:14 }}>{account.name}</p>
-              {linkedCount > 0 && <p style={{ fontSize:12, color:"var(--orange)", marginTop:2 }}>⚠ {linkedCount} transaction{linkedCount !== 1 ? "s" : ""} linked</p>}
+              <p style={{ fontWeight: 700, color: "var(--text)", fontSize: 14 }}>{account.name}</p>
+              {linkedCount > 0 && (
+                <p style={{ fontSize: 12, color: "var(--orange)", marginTop: 2 }}>
+                  ⚠ {linkedCount} transaction{linkedCount !== 1 ? "s" : ""} linked
+                </p>
+              )}
             </div>
           </div>
+
           {linkedCount === 0 ? (
-            <p style={{ fontSize:13, color:"var(--text-soft)", lineHeight:1.6 }}>This account has no transactions. It will be permanently deleted.</p>
+            <p style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6 }}>
+              This account has no transactions. It will be permanently deleted.
+            </p>
           ) : (
             <>
-              <p style={{ fontSize:13, color:"var(--text-soft)", lineHeight:1.6 }}>Choose what to do with the <strong style={{ color:"var(--text)" }}>{linkedCount} linked transaction{linkedCount !== 1 ? "s" : ""}</strong>:</p>
+              <p style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6 }}>
+                Choose what to do with the <strong style={{ color: "var(--text)" }}>{linkedCount} linked transaction{linkedCount !== 1 ? "s" : ""}</strong>:
+              </p>
               {otherAccounts.length > 0 && (
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <label className="input-label">Reassign transactions to</label>
                   <select className="input" value={reassignTo} onChange={e => setReassignTo(e.target.value)}>
                     <option value="">— select account —</option>
@@ -213,11 +488,26 @@ function DeleteAccountModal({ account, linkedCount, onConfirmDelete, onReassignA
               )}
             </>
           )}
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {linkedCount > 0 && otherAccounts.length > 0 && (
-              <button className="btn-primary" disabled={!reassignTo} style={{ opacity:reassignTo ? 1 : 0.45 }} onClick={() => reassignTo && onReassignAndDelete(reassignTo)}>Reassign & Delete</button>
+              <button
+                className="btn-primary"
+                disabled={!reassignTo}
+                style={{ opacity: reassignTo ? 1 : 0.45 }}
+                onClick={() => reassignTo && onReassignAndDelete(reassignTo)}
+              >
+                Reassign & Delete
+              </button>
             )}
-            <button style={{ background:"rgba(239,68,68,0.12)", color:"var(--red)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"var(--radius-sm)", padding:"11px 20px", fontSize:14, fontWeight:600, transition:"all 0.2s" }} onClick={onConfirmDelete}>
+            <button
+              style={{
+                background: "rgba(239,68,68,0.12)", color: "var(--red)",
+                border: "1px solid rgba(239,68,68,0.3)", borderRadius: "var(--radius-sm)",
+                padding: "11px 20px", fontSize: 14, fontWeight: 600, transition: "all 0.2s",
+              }}
+              onClick={onConfirmDelete}
+            >
               {linkedCount > 0 ? `Delete Account + ${linkedCount} Transaction${linkedCount !== 1 ? "s" : ""}` : "Delete Account"}
             </button>
             <button className="btn-cancel" onClick={onClose}>Cancel</button>
@@ -251,23 +541,28 @@ function CategoryManager({ type, categories, onAdd, onDelete, onClose }) {
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="cat-add-row">
-          <input className="input" placeholder="New category name..." value={newName} onChange={e => { setNewName(e.target.value); setError(""); }} onKeyDown={e => e.key === "Enter" && handleAdd()} style={{ flex:1 }} />
+          <input
+            className="input" placeholder="New category name..." value={newName}
+            onChange={e => { setNewName(e.target.value); setError(""); }}
+            onKeyDown={e => e.key === "Enter" && handleAdd()}
+            style={{ flex: 1 }}
+          />
           <input type="color" className="color-pick" value={newColor} onChange={e => setNewColor(e.target.value)} />
-          <button className="btn-primary" onClick={handleAdd} style={{ padding:"10px 16px", whiteSpace:"nowrap" }}>+ Add</button>
+          <button className="btn-primary" onClick={handleAdd} style={{ padding: "10px 16px", whiteSpace: "nowrap" }}>+ Add</button>
         </div>
         {error && <p className="cat-error">{error}</p>}
         <div className="cat-list">
           {categories.map((c, i) => (
             <div key={i} className="cat-item">
-              <span className="cat-dot" style={{ background:c.color }} />
+              <span className="cat-dot" style={{ background: c.color }} />
               <span className="cat-name">{c.name}</span>
-              {c.name !== "Other" && c.name !== "Transfer" && categories.length > 1 && (
+              {categories.length > 1 && (
                 <button className="cat-del-btn" onClick={() => onDelete(c.name)}>✕</button>
               )}
             </div>
           ))}
         </div>
-        <p className="cat-hint">💡 "Other" and "Transfer" cannot be deleted. Click outside to close.</p>
+        <p className="cat-hint">💡 Click outside to close.</p>
       </div>
     </div>
   );
@@ -276,9 +571,9 @@ function CategoryManager({ type, categories, onAdd, onDelete, onClose }) {
 // ─── Loading Spinner ──────────────────────────────────────────────
 function LoadingScreen() {
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"60vh", flexDirection:"column", gap:16 }}>
-      <div style={{ width:40, height:40, border:"3px solid var(--border)", borderTop:"3px solid var(--accent)", borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
-      <p style={{ color:"var(--text-muted)", fontSize:14 }}>Loading your data...</p>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: 16 }}>
+      <div style={{ width: 40, height: 40, border: "3px solid var(--border)", borderTop: "3px solid var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <p style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading your data...</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -291,11 +586,11 @@ export default function ExpenseTracker({ userId }) {
   const [loading, setLoading]   = useState(true);
   const [entries, setEntries]   = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [expCats, setExpCats]   = useState(DEFAULT_EXPENSE_CATEGORIES);
-  const [incCats, setIncCats]   = useState(DEFAULT_INCOME_CATEGORIES);
+  const [expCats, setExpCats]   = useState([]);
+  const [incCats, setIncCats]   = useState([]);
 
   const [form, setForm] = useState({
-    type: "expense", amount: "", category: DEFAULT_EXPENSE_CATEGORIES[0].name,
+    type: "expense", amount: "", category: "",
     note: "", date: today, accountId: "",
   });
 
@@ -303,56 +598,43 @@ export default function ExpenseTracker({ userId }) {
   const [confirmId, setConfirmId]             = useState(null);
   const [selectedAcc, setSelectedAcc]         = useState(null);
   const [showAddAcc, setShowAddAcc]           = useState(false);
-  const [newAcc, setNewAcc]                   = useState({ name: "", icon: "🏦", color: "#6366f1" });
   const [editEntry, setEditEntry]             = useState(null);
   const [catModal, setCatModal]               = useState(null);
   const [editingAccount, setEditingAccount]   = useState(null);
   const [deletingAccount, setDeletingAccount] = useState(null);
   const [showTransfer, setShowTransfer]       = useState(false);
   const [saving, setSaving]                   = useState(false);
+  const [chartMonth, setChartMonth]           = useState(today.slice(0, 7)); // "YYYY-MM"
 
-  // ✅ Ref guard — prevents loadData from running more than once
   const hasLoaded = useRef(false);
 
   // ─── Load data ────────────────────────────────────────────────
   const loadData = useCallback(async () => {
-    // ✅ If already loaded, skip — prevents duplicate account creation
     if (hasLoaded.current) return;
     hasLoaded.current = true;
 
     setLoading(true);
     try {
       const [entriesRes, accountsRes, expCatsRes, incCatsRes] = await Promise.all([
-        pb.collection("entries").getFullList({ filter:`userId = '${userId}'`, sort:"-date" }),
-        pb.collection("accounts").getFullList({ filter:`userId = '${userId}'` }),
-        pb.collection("expense_categories").getFullList({ filter:`userId = '${userId}'` }),
-        pb.collection("income_categories").getFullList({ filter:`userId = '${userId}'` }),
+        pb.collection("entries").getFullList({ filter: `userId = '${userId}'`, sort: "-date" }),
+        pb.collection("accounts").getFullList({ filter: `userId = '${userId}'` }),
+        pb.collection("expense_categories").getFullList({ filter: `userId = '${userId}'` }),
+        pb.collection("income_categories").getFullList({ filter: `userId = '${userId}'` }),
       ]);
 
       setEntries(entriesRes);
+      const normalizedAccounts = accountsRes.map(acc => ({
+  ...acc,
+  group: acc.group || "cash", // fallback ONLY once here
+}));
 
-      if (accountsRes.length === 0) {
-        const created = await Promise.all(DEFAULT_ACCOUNTS.map(a => pb.collection("accounts").create({ ...a, userId })));
-        setAccounts(created);
-        setForm(f => ({ ...f, accountId: created[0]?.id || "" }));
-      } else {
-        setAccounts(accountsRes);
-        setForm(f => ({ ...f, accountId: f.accountId || accountsRes[0]?.id || "" }));
-      }
-
-      if (expCatsRes.length === 0) {
-        const created = await Promise.all(DEFAULT_EXPENSE_CATEGORIES.map(c => pb.collection("expense_categories").create({ ...c, userId })));
-        setExpCats(created);
-      } else { setExpCats(expCatsRes); }
-
-      if (incCatsRes.length === 0) {
-        const created = await Promise.all(DEFAULT_INCOME_CATEGORIES.map(c => pb.collection("income_categories").create({ ...c, userId })));
-        setIncCats(created);
-      } else { setIncCats(incCatsRes); }
+setAccounts(normalizedAccounts);
+      setForm(f => ({ ...f, accountId: f.accountId || accountsRes[0]?.id || "" }));
+      setExpCats(expCatsRes);
+      setIncCats(incCatsRes);
 
     } catch (err) {
       console.error("Failed to load data:", err);
-      // ✅ Reset flag on error so user can retry
       hasLoaded.current = false;
     } finally {
       setLoading(false);
@@ -406,27 +688,45 @@ export default function ExpenseTracker({ userId }) {
   const totalExpense = entries.filter(e => e.type === "expense" && !e.isTransfer).reduce((s, e) => s + e.amount, 0);
   const balance      = totalIncome - totalExpense;
 
-  // ─── Pie data (exclude transfers) ─────────────────────────────
+  // ─── Pie data (monthly) ──────────────────────────────────────
   const expensePieData = useMemo(() => {
     const map = {};
-    entries.filter(e => e.type === "expense" && !e.isTransfer && (!selectedAcc || e.accountId === selectedAcc))
-      .forEach(e => { map[e.category] = (map[e.category] || 0) + e.amount; });
+    entries.filter(e =>
+      e.type === "expense" && !e.isTransfer &&
+      e.date.slice(0, 7) === chartMonth &&
+      (!selectedAcc || e.accountId === selectedAcc)
+    ).forEach(e => { map[e.category] = (map[e.category] || 0) + e.amount; });
     return expCats.filter(c => c.name !== "Transfer").map(c => ({ label: c.name, value: map[c.name] || 0, color: c.color })).filter(d => d.value > 0);
-  }, [entries, selectedAcc, expCats]);
+  }, [entries, selectedAcc, expCats, chartMonth]);
 
   const incomePieData = useMemo(() => {
     const map = {};
-    entries.filter(e => e.type === "income" && !e.isTransfer && (!selectedAcc || e.accountId === selectedAcc))
-      .forEach(e => { map[e.category] = (map[e.category] || 0) + e.amount; });
+    entries.filter(e =>
+      e.type === "income" && !e.isTransfer &&
+      e.date.slice(0, 7) === chartMonth &&
+      (!selectedAcc || e.accountId === selectedAcc)
+    ).forEach(e => { map[e.category] = (map[e.category] || 0) + e.amount; });
     return incCats.filter(c => c.name !== "Transfer").map(c => ({ label: c.name, value: map[c.name] || 0, color: c.color })).filter(d => d.value > 0);
-  }, [entries, selectedAcc, incCats]);
+  }, [entries, selectedAcc, incCats, chartMonth]);
 
-  // ─── Ledger ───────────────────────────────────────────────────
-  const dailyEntries = useMemo(() => {
-    return entries.filter(e =>
-      e.date === filterDate && (!selectedAcc || e.accountId === selectedAcc)
+  // ─── Ledger (monthly, grouped by date) ──────────────────────
+  const ledgerMonth = filterDate.slice(0, 7);
+
+  const monthlyGrouped = useMemo(() => {
+    const filtered = entries.filter(e =>
+      e.date.slice(0, 7) === ledgerMonth && (!selectedAcc || e.accountId === selectedAcc)
     );
-  }, [entries, filterDate, selectedAcc]);
+    // Group by date
+    const groups = {};
+    filtered.forEach(e => {
+      if (!groups[e.date]) groups[e.date] = [];
+      groups[e.date].push(e);
+    });
+    // Sort dates descending
+    return Object.keys(groups)
+      .sort((a, b) => b.localeCompare(a))
+      .map(date => ({ date, entries: groups[date] }));
+  }, [entries, ledgerMonth, selectedAcc]);
 
   // ─── CRUD: Entries ────────────────────────────────────────────
   const addEntry = async () => {
@@ -459,12 +759,12 @@ export default function ExpenseTracker({ userId }) {
   const startEdit = (e) => {
     setEditEntry(e.id);
     setForm({ type: e.type, amount: String(e.amount), category: e.category, note: e.note, date: e.date, accountId: e.accountId });
-    window.scrollTo({ top:0, behavior:"smooth" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const cancelEdit = () => {
     setEditEntry(null);
-    setForm({ type:"expense", amount:"", category:expCats[0]?.name || "", note:"", date:today, accountId:accounts[0]?.id || "" });
+    setForm({ type: "expense", amount: "", category: expCats[0]?.name || "", note: "", date: today, accountId: accounts[0]?.id || "" });
   };
 
   const handleDelete = async (id) => {
@@ -472,11 +772,8 @@ export default function ExpenseTracker({ userId }) {
       const entry = entries.find(e => e.id === id);
       if (entry?.isTransfer) {
         const paired = entries.find(e =>
-          e.id !== id &&
-          e.isTransfer &&
-          e.amount === entry.amount &&
-          e.date === entry.date &&
-          e.type !== entry.type
+          e.id !== id && e.isTransfer && e.amount === entry.amount &&
+          e.date === entry.date && e.type !== entry.type
         );
         await pb.collection("entries").delete(id);
         if (paired) await pb.collection("entries").delete(paired.id);
@@ -497,19 +794,51 @@ export default function ExpenseTracker({ userId }) {
   };
 
   // ─── CRUD: Accounts ───────────────────────────────────────────
-  const addAccount = async () => {
-    if (!newAcc.name.trim()) return;
-    const created = await pb.collection("accounts").create({ ...newAcc, userId });
+  const addAccount = async (draft) => {
+  try {
+    const payload = {
+      ...draft,
+      group: draft.group || "cash", // ensure group always exists
+      userId,
+    };
+
+    console.log("Creating account:", payload); // DEBUG
+
+    const created = await pb.collection("accounts").create(payload);
+
     setAccounts(prev => [...prev, created]);
-    setNewAcc({ name:"", icon:"💳", color:"#6366f1" });
     setShowAddAcc(false);
-  };
+
+    setForm(f => ({
+      ...f,
+      accountId: f.accountId || created.id,
+    }));
+
+  } catch (err) {
+    console.error("Failed to create account:", err);
+  }
+};
 
   const handleSaveAccount = async (updated) => {
-    const saved = await pb.collection("accounts").update(updated.id, { name:updated.name, icon:updated.icon, color:updated.color });
+  try {
+    const payload = {
+      name: updated.name,
+      icon: updated.icon,
+      color: updated.color,
+      group: updated.group || "cash", // ensure always valid
+    };
+
+    console.log("Updating account:", payload); // DEBUG
+
+    const saved = await pb.collection("accounts").update(updated.id, payload);
+
     setAccounts(prev => prev.map(a => a.id === saved.id ? saved : a));
     setEditingAccount(null);
-  };
+
+  } catch (err) {
+    console.error("Failed to update account:", err);
+  }
+};
 
   const linkedEntryCount = (accId) => entries.filter(e => e.accountId === accId).length;
 
@@ -540,18 +869,27 @@ export default function ExpenseTracker({ userId }) {
     <div className="page">
 
       {catModal && (
-        <CategoryManager type={catModal} categories={catModal === "expense" ? expCats : incCats}
-          onAdd={(cat) => handleAddCat(catModal, cat)} onDelete={(name) => handleDeleteCat(catModal, name)} onClose={() => setCatModal(null)} />
+        <CategoryManager
+          type={catModal}
+          categories={catModal === "expense" ? expCats : incCats}
+          onAdd={(cat) => handleAddCat(catModal, cat)}
+          onDelete={(name) => handleDeleteCat(catModal, name)}
+          onClose={() => setCatModal(null)}
+        />
       )}
       {editingAccount && (
         <EditAccountModal account={editingAccount} onSave={handleSaveAccount} onClose={() => setEditingAccount(null)} />
       )}
       {deletingAccount && (
-        <DeleteAccountModal account={deletingAccount} linkedCount={linkedEntryCount(deletingAccount.id)}
-          accounts={accounts} onConfirmDelete={() => handleConfirmDeleteAccount(deletingAccount.id)}
-          onReassignAndDelete={(id) => handleReassignAndDeleteAccount(deletingAccount.id, id)} onClose={() => setDeletingAccount(null)} />
+        <DeleteAccountModal
+          account={deletingAccount}
+          linkedCount={linkedEntryCount(deletingAccount.id)}
+          accounts={accounts}
+          onConfirmDelete={() => handleConfirmDeleteAccount(deletingAccount.id)}
+          onReassignAndDelete={(id) => handleReassignAndDeleteAccount(deletingAccount.id, id)}
+          onClose={() => setDeletingAccount(null)}
+        />
       )}
-
       {showTransfer && (
         <TransferModal
           accounts={accounts}
@@ -568,10 +906,10 @@ export default function ExpenseTracker({ userId }) {
           <h1 className="page-title">Finance Tracker</h1>
           <p className="page-sub">Monitor income, expenses & accounts</p>
         </div>
-        <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button className="btn-transfer" onClick={() => setShowTransfer(true)}>↔ Transfer</button>
           <div className="date-badge">
-            {new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" })}
+            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
           </div>
         </div>
       </div>
@@ -592,34 +930,25 @@ export default function ExpenseTracker({ userId }) {
         </div>
       </div>
 
-      {/* Accounts */}
-      <div className="card">
-        <div className="card-header-row">
-          <h2 className="card-title">Accounts</h2>
-          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-            {selectedAcc && <button className="filter-chip active" onClick={() => setSelectedAcc(null)}>Clear Filter</button>}
-            <button className="btn-transfer" onClick={() => setShowTransfer(true)}>↔ Transfer</button>
-            <button className="btn-add-acc" onClick={() => setShowAddAcc(v => !v)}>+ Add Account</button>
-          </div>
-        </div>
-        <div className="accounts-grid">
-          {accounts.map(acc => (
-            <AccountCard key={acc.id} account={acc} balance={accountBalances[acc.id] || 0}
-              isSelected={selectedAcc === acc.id}
-              onClick={() => setSelectedAcc(selectedAcc === acc.id ? null : acc.id)}
-              onEdit={(a) => setEditingAccount(a)} onDelete={(a) => setDeletingAccount(a)} />
-          ))}
-        </div>
-        {showAddAcc && (
-          <div className="add-acc-form">
-            <input className="input" placeholder="Account name" value={newAcc.name} onChange={e => setNewAcc({ ...newAcc, name: e.target.value })} />
-            <input className="input" placeholder="Emoji icon" value={newAcc.icon} onChange={e => setNewAcc({ ...newAcc, icon: e.target.value })} style={{ maxWidth:90 }} />
-            <input type="color" className="color-pick" value={newAcc.color} onChange={e => setNewAcc({ ...newAcc, color: e.target.value })} />
-            <button className="btn-primary" onClick={addAccount}>Save</button>
-            <button className="btn-cancel" onClick={() => setShowAddAcc(false)}>Cancel</button>
-          </div>
-        )}
-      </div>
+      {/* Accounts grouped */}
+      <AccountGroups
+        accounts={accounts}
+        accountBalances={accountBalances}
+        selectedAcc={selectedAcc}
+        setSelectedAcc={setSelectedAcc}
+        onEdit={(a) => setEditingAccount(a)}
+        onDelete={(a) => setDeletingAccount(a)}
+        onShowAddAcc={() => setShowAddAcc(v => !v)}
+        onShowTransfer={() => setShowTransfer(true)}
+      />
+
+      {/* Add account form — shown below accounts section */}
+      {showAddAcc && (
+        <AddAccountForm
+          onSave={addAccount}
+          onCancel={() => setShowAddAcc(false)}
+        />
+      )}
 
       {/* Add / Edit + Charts */}
       <div className="two-col">
@@ -635,7 +964,7 @@ export default function ExpenseTracker({ userId }) {
             </div>
             <input type="number" placeholder="Amount" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} className="input" />
             <div className="cat-select-row">
-              <select key={form.type} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="input" style={{ flex:1, minWidth:0 }}>
+              <select key={form.type} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="input" style={{ flex: 1, minWidth: 0 }}>
                 {currentCats.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
               </select>
               <button className="btn-manage-cats" onClick={() => setCatModal(form.type)}>⚙ Manage</button>
@@ -645,8 +974,8 @@ export default function ExpenseTracker({ userId }) {
             </select>
             <input type="text" placeholder="Note (optional)" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} className="input" />
             <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="input" />
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={addEntry} className="btn-primary" style={{ flex:1 }} disabled={saving}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={addEntry} className="btn-primary" style={{ flex: 1 }} disabled={saving}>
                 {saving ? "Saving..." : editEntry ? "Save Changes" : "Add Transaction"}
               </button>
               {editEntry && <button onClick={cancelEdit} className="btn-cancel">Cancel</button>}
@@ -654,17 +983,28 @@ export default function ExpenseTracker({ userId }) {
           </div>
         </div>
 
-        <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {/* Month picker shared by both charts */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Showing breakdown for</span>
+            <input
+              type="month"
+              value={chartMonth}
+              onChange={e => setChartMonth(e.target.value)}
+              className="input compact"
+              style={{ width: "auto" }}
+            />
+          </div>
           <div className="card">
-            <div className="card-header-row" style={{ marginBottom:16 }}>
-              <h2 className="card-title" style={{ color:"var(--green)", marginBottom:0 }}>💚 Income Breakdown</h2>
+            <div className="card-header-row" style={{ marginBottom: 16 }}>
+              <h2 className="card-title" style={{ color: "var(--green)", marginBottom: 0 }}>💚 Income Breakdown</h2>
               <button className="btn-manage-cats" onClick={() => setCatModal("income")}>⚙ Manage</button>
             </div>
             <PieChart data={incomePieData} label="INCOME" />
           </div>
           <div className="card">
-            <div className="card-header-row" style={{ marginBottom:16 }}>
-              <h2 className="card-title" style={{ color:"var(--red)", marginBottom:0 }}>❤️ Expense Breakdown</h2>
+            <div className="card-header-row" style={{ marginBottom: 16 }}>
+              <h2 className="card-title" style={{ color: "var(--red)", marginBottom: 0 }}>❤️ Expense Breakdown</h2>
               <button className="btn-manage-cats" onClick={() => setCatModal("expense")}>⚙ Manage</button>
             </div>
             <PieChart data={expensePieData} label="EXPENSES" />
@@ -672,47 +1012,95 @@ export default function ExpenseTracker({ userId }) {
         </div>
       </div>
 
-      {/* Daily Ledger */}
+      {/* Monthly Ledger */}
       <div className="card">
         <div className="card-header-row">
           <h2 className="card-title">
-            Daily Ledger
-            {selectedAcc && <span className="breakdown-acc-tag">{accounts.find(a => a.id === selectedAcc)?.name}</span>}
+            Monthly Ledger
+            {selectedAcc && (
+              <span className="breakdown-acc-tag">{accounts.find(a => a.id === selectedAcc)?.name}</span>
+            )}
           </h2>
-          <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="input compact" />
+          <input
+            type="month"
+            value={ledgerMonth}
+            onChange={e => setFilterDate(e.target.value + "-01")}
+            className="input compact"
+            style={{ width: "auto" }}
+          />
         </div>
-        {dailyEntries.length === 0 ? (
-          <p className="empty-msg">No transactions for this date{selectedAcc ? " in this account" : ""}.</p>
+
+        {monthlyGrouped.length === 0 ? (
+          <p className="empty-msg">No transactions for this month{selectedAcc ? " in this account" : ""}.</p>
         ) : (
-          <div className="entry-list">
-            {dailyEntries.map(e => {
-              const acc = accounts.find(a => a.id === e.accountId);
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {monthlyGrouped.map(({ date, entries: dayEntries }) => {
+              const d = new Date(date + "T00:00:00");
+              const dayName = d.toLocaleDateString("en-US", { weekday: "long" });
+              const dayNum = d.getDate();
+              const monthName = d.toLocaleDateString("en-US", { month: "short" });
+              const dayIncome  = dayEntries.filter(e => e.type === "income").reduce((s, e) => s + e.amount, 0);
+              const dayExpense = dayEntries.filter(e => e.type === "expense").reduce((s, e) => s + e.amount, 0);
               return (
-                <div key={e.id} className={`entry-row ${e.type} ${e.isTransfer ? "transfer-row" : ""}`}>
-                  <div className="entry-left">
-                    {e.isTransfer
-                      ? <span className="transfer-badge">↔</span>
-                      : <span className="entry-cat-dot" style={{ background: getCatColor(e.category, e.type) }} />
-                    }
-                    <div>
-                      <p className="entry-note">
-                        {e.note || e.category}
-                        {e.isTransfer && <span className="transfer-tag">Transfer</span>}
-                      </p>
-                      <p className="entry-meta">
-                        {e.category} · {formatDate(e.date)}
-                        {acc && <span className="entry-acc-tag" style={{ background: acc.color + "22", color: acc.color }}>{acc.icon} {acc.name}</span>}
-                      </p>
+                <div key={date} style={{ borderBottom: "1px solid var(--border)" }}>
+                  {/* Date header row */}
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "10px 4px 8px",
+                    gap: 12,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      <span style={{ fontSize: 22, fontWeight: 700, color: "var(--text)", lineHeight: 1 }}>{dayNum}</span>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", lineHeight: 1 }}>{dayName}</p>
+                        <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{monthName}</p>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
+                      {dayIncome > 0 && <span style={{ color: "var(--green)" }}>+₹{dayIncome.toLocaleString()}</span>}
+                      {dayExpense > 0 && <span style={{ color: "var(--red)" }}>−₹{dayExpense.toLocaleString()}</span>}
                     </div>
                   </div>
-                  <div className="entry-right">
-                    <span className={`entry-amount ${e.type}`}>{e.type === "income" ? "+" : "−"}₹{e.amount}</span>
-                    {!e.isTransfer && <button onClick={() => startEdit(e)} className="edit-btn" title="Edit">✎</button>}
-                    <button onClick={() => handleDelete(e.id)}
-                      className={`del-btn ${confirmId === e.id ? "del-btn-confirm" : ""}`}
-                      title={confirmId === e.id ? (e.isTransfer ? "Click again — will delete both legs" : "Click again to confirm") : "Delete"}>
-                      {confirmId === e.id ? "?" : "✕"}
-                    </button>
+                  {/* Entries for this day */}
+                  <div className="entry-list" style={{ paddingBottom: 8 }}>
+                    {dayEntries.map(e => {
+                      const acc = accounts.find(a => a.id === e.accountId);
+                      return (
+                        <div key={e.id} className={`entry-row ${e.type} ${e.isTransfer ? "transfer-row" : ""}`}>
+                          <div className="entry-left">
+                            {e.isTransfer
+                              ? <span className="transfer-badge">↔</span>
+                              : <span className="entry-cat-dot" style={{ background: getCatColor(e.category, e.type) }} />
+                            }
+                            <div>
+                              <p className="entry-note">
+                                {e.note || e.category}
+                                {e.isTransfer && <span className="transfer-tag">Transfer</span>}
+                              </p>
+                              <p className="entry-meta">
+                                {e.category}
+                                {acc && (
+                                  <span className="entry-acc-tag" style={{ background: acc.color + "22", color: acc.color }}>
+                                    {acc.icon} {acc.name}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="entry-right">
+                            <span className={`entry-amount ${e.type}`}>{e.type === "income" ? "+" : "−"}₹{e.amount}</span>
+                            {!e.isTransfer && <button onClick={() => startEdit(e)} className="edit-btn" title="Edit">✎</button>}
+                            <button
+                              onClick={() => handleDelete(e.id)}
+                              className={`del-btn ${confirmId === e.id ? "del-btn-confirm" : ""}`}
+                              title={confirmId === e.id ? (e.isTransfer ? "Click again — will delete both legs" : "Click again to confirm") : "Delete"}
+                            >
+                              {confirmId === e.id ? "?" : "✕"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
