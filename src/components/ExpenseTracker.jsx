@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import pb from "../pb";
-import TransferModal from "./TransferModal";
+import Transfermodal from "./Transfermodal";
 
 // ─── Account Groups ───────────────────────────────────────────────
 const ACCOUNT_GROUPS = [
