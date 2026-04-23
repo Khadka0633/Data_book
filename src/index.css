@@ -42,7 +42,7 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
-button { cursor: pointer; border: none; background: none; font-family: inherit; }
+button { cursor: pointer; border: none; background: none; font-family: inherit; outline: none; }
 input, select { font-family: inherit; }
 option { background: var(--surface-2); color: var(--text); }
 
@@ -50,6 +50,7 @@ option { background: var(--surface-2); color: var(--text); }
 .app-shell {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -188,6 +189,9 @@ option { background: var(--surface-2); color: var(--text); }
 .main-content::-webkit-scrollbar { width: 6px; }
 .main-content::-webkit-scrollbar-track { background: transparent; }
 .main-content::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 3px; }
+.main-content {
+  -webkit-overflow-scrolling: touch;
+}
 
 /* ─── Page ───────────────────────────────────────────────────────── */
 .page {
@@ -464,8 +468,8 @@ option { background: var(--surface-2); color: var(--text); }
 
 .entry-row:hover { border-color: var(--border-hover); }
 
-.entry-left { display: flex; align-items: center; gap: 12px; }
-.entry-right { display: flex; align-items: center; gap: 12px; }
+.entry-left { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.entry-right { display: flex; flex-shrink: 0; align-items: center; gap: 12px; }
 
 .entry-cat-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
@@ -1788,4 +1792,42 @@ option { background: var(--surface-2); color: var(--text); }
 .transfer-arrow {
   color: var(--accent);
   flex-shrink: 0;
+}
+
+.ledger-card {
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .ledger-card {
+    max-height: 75vh;   /* limits height */
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ledger-card .entry-list {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ledger-card > div:last-child {
+    overflow-y: auto;
+  }
+}
+
+.entry-row {
+  flex-wrap: wrap;   /* allow wrapping */
+  gap: 6px;
+}
+
+.entry-left {
+  min-width: 0; /* prevents overflow */
+}
+
+.entry-note {
+  word-break: break-word;
+}
+
+.app-shell {
+  overflow-x: hidden;
 }

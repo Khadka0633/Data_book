@@ -278,7 +278,7 @@ const handleSave = () => {
 };
 
   return (
-    <div className="card">
+    <div className="card ledger-card">
       <h2 className="card-title" style={{ marginBottom: 16 }}>New Account</h2>
 
       {/* Preview */}
