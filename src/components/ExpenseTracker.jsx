@@ -4,11 +4,12 @@ import Transfermodal from "./Transfermodal";
 
 // ─── Account Groups ───────────────────────────────────────────────
 const ACCOUNT_GROUPS = [
-  { key: "savings",    label: "Savings",     color: "#3B6D11", bg: "#EAF3DE" },
-  { key: "cash",       label: "Cash",        color: "#854F0B", bg: "#FAEEDA" },
-  { key: "investment", label: "Investments", color: "#534AB7", bg: "#EEEDFE" },
-  { key: "loan",       label: "Loans",       color: "#A32D2D", bg: "#FCEBEB" },
-  { key: "bank",      label: "Bank",       color: "#5F5E5A", bg: "#F1EFE8" },
+  { key: "savings",    label: "Savings",     color: "#5fc20e", bg: "#190749" },
+  { key: "cash",       label: "Cash",        color: "#bd6f10", bg: "#190749" },
+  { key: "investment", label: "Investments", color: "#534AB7", bg: "#190749" },
+  { key: "loan",       label: "Loans",       color: "#A32D2D", bg: "#190749" },
+  { key: "bank",      label: "Bank",       color: "#0ab97f", bg: "#190749" },
+  { key: "wallet",      label: "Digital_Wallet",       color: "#ac9330", bg: "#190749" },
 ];
 
 // ─── Default Categories ───────────────────────────────────────────

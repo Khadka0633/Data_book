@@ -26,10 +26,11 @@ const loadData = useCallback(async () => {
       setExpCats(created);
     } else { setExpCats(expCatsRes); }
 
-    if (incCatsRes.length === 0) {
+    {/*if (incCatsRes.length === 0) {
       const created = await Promise.all(DEFAULT_INCOME_CATEGORIES.map(c => pb.collection("income_categories").create({ ...c, userId })));
       setIncCats(created);
     } else { setIncCats(incCatsRes); }
+     */}
 
   } catch (err) {
     console.error("Failed to load data:", err);
