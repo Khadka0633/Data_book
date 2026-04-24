@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import ExpenseTracker from "./components/ExpenseTracker";
 import HealthMonitor from "./components/HealthMonitor";
 import TodoList from "./components/TodoList";
+import ChartsTab from "./components/ChartsTab";  
 import Sidebar from "./components/Sidebar";
 import Login from "./components/Login";
 import pb from "./pb";
@@ -17,11 +18,7 @@ export default function App() {
     return null;
   });
 
-  // ✅ INSIDE the component — this is what was crashing before
   useEffect(() => {
-    console.log("authStore valid:", pb.authStore.isValid);
-    console.log("authStore model:", pb.authStore.model);
-
     if (pb.authStore.isValid) {
       pb.collection("users").authRefresh().catch(() => {
         pb.authStore.clear();
@@ -31,7 +28,6 @@ export default function App() {
   }, []);
 
   const handleLogin = (userData) => setUser(userData);
-
   const handleLogout = () => {
     pb.authStore.clear();
     setUser(null);
@@ -51,6 +47,7 @@ export default function App() {
         {activeTab === "expense" && <ExpenseTracker userId={user.id} />}
         {activeTab === "health"  && <HealthMonitor  userId={user.id} />}
         {activeTab === "todo"    && <TodoList        userId={user.id} />}
+        {activeTab === "charts"  && <ChartsTab       userId={user.id} />}  {/* ← add this */}
       </main>
     </div>
   );
