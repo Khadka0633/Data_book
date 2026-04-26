@@ -1831,3 +1831,45 @@ option { background: var(--surface-2); color: var(--text); }
 .app-shell {
   overflow-x: hidden;
 }
+/* ─── Light Theme ────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:          #f0f2f8;
+  --surface:     #ffffff;
+  --surface-2:   #e8eaf2;
+  --border:      rgba(0,0,0,0.08);
+  --border-hover:rgba(0,0,0,0.16);
+  --text:        #0d0f1a;
+  --text-muted:  #6b7280;
+  --text-soft:   #4b5563;
+  --accent:      #6366f1;
+  --accent-glow: rgba(99,102,241,0.2);
+  --green:       #16a34a;
+  --red:         #dc2626;
+  --orange:      #ea580c;
+  --shadow:      0 4px 24px rgba(0,0,0,0.1);
+  --shadow-lg:   0 8px 48px rgba(0,0,0,0.15);
+}
+
+[data-theme="light"] body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+[data-theme="light"] option {
+  background: #ffffff;
+  color: #0d0f1a;
+}
+
+[data-theme="light"] .input {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.12);
+  color: #0d0f1a;
+}
+
+[data-theme="light"] .acc-menu-btn:hover {
+  background: rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] .login-blob {
+  opacity: 0.08;
+}
