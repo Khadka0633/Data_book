@@ -436,10 +436,11 @@ option { background: var(--surface-2); color: var(--text); }
   align-items: center;
   gap: 8px;
   font-size: 12px;
+  min-width: 0;
 }
 
 .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.legend-label { color: var(--text-soft); flex: 1; min-width: 80px; }
+.legend-label { color: var(--text-soft); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .legend-val { color: var(--text); font-weight: 600; }
 
 .pie-empty {
@@ -2008,3 +2009,4 @@ option { background: var(--surface-2); color: var(--text); }
   font-size: 13px !important;
   color: var(--text) !important;
 }
+
