@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import pb from "../pb";
 import Transfermodal from "./Transfermodal";
 
-// ── Lazy CDN loader ───────────────────────────────────────────────
 function ChartJsLoader() {
   useEffect(() => {
     if (window.Chart) return;
@@ -14,7 +13,6 @@ function ChartJsLoader() {
   return null;
 }
 
-// ─── Category History Modal ───────────────────────────────────────
 function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, onClose }) {
   const canvasRef = useRef(null);
   const chartRef  = useRef(null);
@@ -50,12 +48,10 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
   useEffect(() => {
     if (!canvasRef.current) return;
     if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
-
     const safeColor = color && color.length === 7 ? color : "#6366f1";
     const r = parseInt(safeColor.slice(1, 3), 16);
     const g = parseInt(safeColor.slice(3, 5), 16);
     const b = parseInt(safeColor.slice(5, 7), 16);
-
     const initChart = () => {
       if (!window.Chart || !canvasRef.current) return;
       chartRef.current = new window.Chart(canvasRef.current, {
@@ -66,9 +62,7 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
             data: monthData.map(m => m.total),
             borderColor: safeColor,
             backgroundColor: `rgba(${r},${g},${b},0.08)`,
-            pointBackgroundColor: monthData.map(m =>
-              m.total > 0 ? safeColor : `rgba(${r},${g},${b},0.2)`
-            ),
+            pointBackgroundColor: monthData.map(m => m.total > 0 ? safeColor : `rgba(${r},${g},${b},0.2)`),
             pointBorderColor: safeColor,
             pointRadius: monthData.map(m => m.total > 0 ? 5 : 3),
             pointHoverRadius: 7,
@@ -114,24 +108,17 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
         },
       });
     };
-
     if (window.Chart) initChart();
     else {
-      const interval = setInterval(() => {
-        if (window.Chart) { clearInterval(interval); initChart(); }
-      }, 100);
+      const interval = setInterval(() => { if (window.Chart) { clearInterval(interval); initChart(); } }, 100);
       return () => clearInterval(interval);
     }
     return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
   }, [monthData, color]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal-card"
-        onClick={e => e.stopPropagation()}
-        style={{ maxHeight: "90vh", overflowY: "auto", maxWidth: 520, width: "100%" }}
-      >
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 300 }}>
+      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto", maxWidth: 520, width: "100%" }}>
         <div className="modal-header">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ width: 12, height: 12, borderRadius: "50%", background: color, flexShrink: 0, display: "inline-block" }} />
@@ -145,7 +132,6 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
-
         {catEntries.length === 0 ? (
           <p style={{ color: "var(--text-muted)", fontSize: 14, padding: "20px 0" }}>No transactions found for this category.</p>
         ) : (
@@ -156,16 +142,12 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
                 { label: "Transactions",   value: catEntries.length },
                 { label: "Avg per entry",  value: `₹${Math.round(avg).toLocaleString()}` },
               ].map(s => (
-                <div key={s.label} style={{
-                  background: "var(--surface-2)", borderRadius: "var(--radius-md)",
-                  padding: "10px 12px", textAlign: "center",
-                }}>
+                <div key={s.label} style={{ background: "var(--surface-2)", borderRadius: "var(--radius-md)", padding: "10px 12px", textAlign: "center" }}>
                   <p style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>{s.label}</p>
                   <p style={{ fontSize: 15, fontWeight: 700, color }}>{s.value}</p>
                 </div>
               ))}
             </div>
-
             {peakMonth?.total > 0 && (
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -173,12 +155,9 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
                 borderRadius: "var(--radius-md)", padding: "9px 14px", marginBottom: 16,
               }}>
                 <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Peak month</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color }}>
-                  {peakMonth.lbl} — ₹{peakMonth.total.toLocaleString()}
-                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color }}>{peakMonth.lbl} — ₹{peakMonth.total.toLocaleString()}</span>
               </div>
             )}
-
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10, fontWeight: 600 }}>Last 12 months</p>
             <div style={{ position: "relative", width: "100%", height: 260, marginBottom: 24 }}>
               <canvas ref={canvasRef} role="img" aria-label={`Monthly trend for ${category}`} />
@@ -188,40 +167,28 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
                 </div>
               )}
             </div>
-
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, fontWeight: 600 }}>Month-by-month</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 20 }}>
               {[...monthData].reverse().filter(m => m.total > 0).map(m => {
                 const pct = Math.round((m.total / maxVal) * 100);
                 return (
-                  <div key={m.key} style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    padding: "7px 0", borderBottom: "1px solid var(--border)",
-                  }}>
+                  <div key={m.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
                     <span style={{ fontSize: 12, color: "var(--text-muted)", width: 72, flexShrink: 0 }}>{m.lbl}</span>
                     <div style={{ flex: 1, background: "var(--surface-2)", borderRadius: 4, height: 6, overflow: "hidden" }}>
                       <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 4, opacity: 0.8 }} />
                     </div>
-                    <span style={{ fontSize: 12, color: "var(--text)", width: 90, textAlign: "right", flexShrink: 0, fontWeight: 600 }}>
-                      ₹{m.total.toLocaleString()}
-                    </span>
-                    <span style={{ fontSize: 11, color: "var(--text-muted)", width: 32, textAlign: "right", flexShrink: 0 }}>
-                      ×{m.count}
-                    </span>
+                    <span style={{ fontSize: 12, color: "var(--text)", width: 90, textAlign: "right", flexShrink: 0, fontWeight: 600 }}>₹{m.total.toLocaleString()}</span>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", width: 32, textAlign: "right", flexShrink: 0 }}>×{m.count}</span>
                   </div>
                 );
               })}
             </div>
-
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, fontWeight: 600 }}>Recent transactions</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
               {catEntries.slice(0, 20).map(e => {
                 const acc = accounts.find(a => a.id === e.accountId);
                 return (
-                  <div key={e.id} style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    padding: "9px 0", borderBottom: "1px solid var(--border)",
-                  }}>
+                  <div key={e.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
                     <div>
                       <p style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>{e.note || e.category}</p>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
@@ -255,9 +222,8 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
   );
 }
 
-// ─── Auto-suggest Hook ────────────────────────────────────────────
 function useNoteSuggestions(entries, form) {
-  const [suggestions, setSuggestions]       = useState([]);
+  const [suggestions, setSuggestions]         = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
@@ -280,7 +246,12 @@ function useNoteSuggestions(entries, form) {
   return { suggestions, showSuggestions, setShowSuggestions };
 }
 
-// ─── Category Manager Modal ───────────────────────────────────────
+// ── z-index ladder ────────────────────────────────────────────────
+// floating btn  : 90
+// form modal    : 100
+// cat manager   : 200   ← sits on top of form modal
+// cat history   : 300   ← sits on top of everything
+
 function CategoryManager({ type, categories, onAdd, onDelete, onClose }) {
   const [newName,  setNewName]  = useState("");
   const [newColor, setNewColor] = useState(type === "expense" ? "#f97316" : "#22c55e");
@@ -295,7 +266,8 @@ function CategoryManager({ type, categories, onAdd, onDelete, onClose }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    /* z-index 200 so it renders above the form modal (z 100) */
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 200 }}>
       <div className="modal-card" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">{type === "expense" ? "❤️ Expense" : "💚 Income"} Categories</h3>
@@ -324,7 +296,6 @@ function CategoryManager({ type, categories, onAdd, onDelete, onClose }) {
   );
 }
 
-// ─── Loading Spinner ──────────────────────────────────────────────
 function LoadingScreen() {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: 16 }}>
@@ -335,36 +306,30 @@ function LoadingScreen() {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────
-// Props (shared state lifted to App):
-//   accounts       - array of account objects
-//   entries        - array of all entry objects
-//   onEntriesChange - (updatedEntries) => void
-//   userId
 export default function ExpenseTracker({ userId, accounts, entries, onEntriesChange }) {
   const today = new Date().toISOString().split("T")[0];
 
-  const [loading,  setLoading]  = useState(true);
-  const [expCats,  setExpCats]  = useState([]);
-  const [incCats,  setIncCats]  = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [expCats,      setExpCats]      = useState([]);
+  const [incCats,      setIncCats]      = useState([]);
+  const [showForm,     setShowForm]     = useState(false);
 
   const [form, setForm] = useState({
     type: "expense", amount: "", category: "", note: "", date: today,
     accountId: accounts?.[0]?.id || "",
   });
 
-  const [filterDate,  setFilterDate]  = useState(today);
-  const [confirmId,   setConfirmId]   = useState(null);
-  const [editEntry,   setEditEntry]   = useState(null);
-  const [catModal,    setCatModal]    = useState(null);
+  const [filterDate,   setFilterDate]   = useState(today);
+  const [confirmId,    setConfirmId]    = useState(null);
+  const [editEntry,    setEditEntry]    = useState(null);
+  const [catModal,     setCatModal]     = useState(null);
   const [showTransfer, setShowTransfer] = useState(false);
-  const [saving,      setSaving]      = useState(false);
-  const [catHistory,  setCatHistory]  = useState(null);
+  const [saving,       setSaving]       = useState(false);
+  const [catHistory,   setCatHistory]   = useState(null);
 
   const hasLoaded = useRef(false);
   const { suggestions, showSuggestions, setShowSuggestions } = useNoteSuggestions(entries, form);
 
-  // ─── Load categories ──────────────────────────────────────────
   const loadData = useCallback(async () => {
     if (hasLoaded.current) return;
     hasLoaded.current = true;
@@ -391,14 +356,12 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Keep accountId in sync if accounts load after
   useEffect(() => {
     if (!form.accountId && accounts?.length) {
       setForm(f => ({ ...f, accountId: accounts[0].id }));
     }
   }, [accounts]);
 
-  // ─── Helpers ──────────────────────────────────────────────────
   const currentCats = form.type === "expense" ? expCats : incCats;
 
   const getCatColor = (category, type) =>
@@ -426,12 +389,19 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
     setForm(f => ({ ...f, type: t, category: cats[0]?.name || "" }));
   };
 
-  // ─── Derived stats ────────────────────────────────────────────
+  const closeForm = () => {
+    setShowForm(false);
+    setEditEntry(null);
+    setForm({
+      type: "expense", amount: "", category: expCats[0]?.name || "",
+      note: "", date: today, accountId: accounts?.[0]?.id || "",
+    });
+  };
+
   const totalIncome  = entries.filter(e => e.type === "income"  && !Boolean(e.isTransfer)).reduce((s, e) => s + e.amount, 0);
   const totalExpense = entries.filter(e => e.type === "expense" && !Boolean(e.isTransfer)).reduce((s, e) => s + e.amount, 0);
   const balance      = totalIncome - totalExpense;
 
-  // ─── Ledger ───────────────────────────────────────────────────
   const ledgerMonth = filterDate.slice(0, 7);
 
   const monthlyGrouped = useMemo(() => {
@@ -441,7 +411,6 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
     return Object.keys(groups).sort((a, b) => b.localeCompare(a)).map(date => ({ date, entries: groups[date] }));
   }, [entries, ledgerMonth]);
 
-  // ─── CRUD: Entries ────────────────────────────────────────────
   const addEntry = async () => {
     if (!form.amount || isNaN(form.amount) || +form.amount <= 0) return;
     setSaving(true);
@@ -452,7 +421,6 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
           note: form.note, date: form.date, accountId: form.accountId, userId,
         });
         onEntriesChange(entries.map(e => e.id === editEntry ? updated : e));
-        setEditEntry(null);
       } else {
         const created = await pb.collection("entries").create({
           type: form.type, amount: +form.amount, category: form.category,
@@ -460,7 +428,7 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
         });
         onEntriesChange([created, ...entries]);
       }
-      setForm(f => ({ ...f, amount: "", note: "" }));
+      closeForm();
     } catch (err) {
       console.error("Failed to save entry:", err);
     } finally {
@@ -469,26 +437,9 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
   };
 
   const startEdit = e => {
-  setEditEntry(e.id);
-  setForm({ 
-    type: e.type, 
-    amount: String(e.amount), 
-    category: e.category, 
-    note: e.note, 
-    date: e.date, 
-    accountId: e.accountId 
-  });
-  // Fix: scroll the actual container, not window
-  setTimeout(() => {
-    const container = document.querySelector(".main-content");
-    if (container) container.scrollTo({ top: 0, behavior: "smooth" });
-    else window.scrollTo({ top: 0, behavior: "smooth" });
-  }, 50);
-};
-
-  const cancelEdit = () => {
-    setEditEntry(null);
-    setForm({ type: "expense", amount: "", category: expCats[0]?.name || "", note: "", date: today, accountId: accounts?.[0]?.id || "" });
+    setEditEntry(e.id);
+    setShowForm(true);
+    setForm({ type: e.type, amount: String(e.amount), category: e.category, note: e.note, date: e.date, accountId: e.accountId });
   };
 
   const handleDelete = async id => {
@@ -512,10 +463,110 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
 
   if (loading) return <LoadingScreen />;
 
-  // ─── Render ───────────────────────────────────────────────────
   return (
     <div className="page">
 
+      {/* ── Transfer Modal ── */}
+      {showTransfer && (
+        <Transfermodal
+          accounts={accounts} userId={userId} today={today}
+          onTransferDone={newEntries => onEntriesChange([...newEntries, ...entries])}
+          onClose={() => setShowTransfer(false)}
+        />
+      )}
+
+      {/* ── Category History Modal (z 300) ── */}
+      {catHistory && (
+        <CategoryHistoryModal
+          category={catHistory.category} type={catHistory.type}
+          entries={entries} accounts={accounts} getCatColor={getCatColor}
+          onClose={() => setCatHistory(null)}
+        />
+      )}
+
+      {/* ── Add / Edit Transaction Modal (z 100) ── */}
+      {showForm && (
+        <div className="modal-overlay" onClick={closeForm} style={{ zIndex: 100 }}>
+          <div
+            className="modal-card"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: 460, width: "100%", maxHeight: "90vh", overflowY: "auto" }}
+          >
+            <div className="modal-header">
+              <h3 className="modal-title">{editEntry ? "✏️ Edit Transaction" : "Add Transaction"}</h3>
+              <button className="modal-close" onClick={closeForm}>✕</button>
+            </div>
+            <div className="form-group">
+              <div className="type-toggle">
+                {["expense", "income"].map(t => (
+                  <button key={t} onClick={() => handleTypeChange(t)} className={`toggle-btn ${form.type === t ? "active-" + t : ""}`}>
+                    {t === "expense" ? "− Expense" : "+ Income"}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number" placeholder="Amount" value={form.amount}
+                onChange={e => setForm({ ...form, amount: e.target.value })}
+                className="input" autoFocus
+              />
+              <div className="cat-select-row">
+                <select
+                  key={form.type} value={form.category}
+                  onChange={e => setForm({ ...form, category: e.target.value })}
+                  className="input" style={{ flex: 1, minWidth: 0 }}
+                >
+                  {currentCats.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
+                </select>
+                {/* Manage button — opens CategoryManager on top (z 200) */}
+                <button className="btn-manage-cats" onClick={() => setCatModal(form.type)}>⚙ Manage</button>
+              </div>
+              <select value={form.accountId} onChange={e => setForm({ ...form, accountId: e.target.value })} className="input">
+                {(accounts || []).map(a => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
+              </select>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text" placeholder="Note (optional)" value={form.note}
+                  onChange={e => setForm({ ...form, note: e.target.value })}
+                  onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  className="input"
+                />
+                {showSuggestions && (
+                  <div style={{
+                    position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
+                    background: "var(--surface)", border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)", overflow: "hidden",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.3)", marginTop: 4,
+                  }}>
+                    {suggestions.map((s, i) => (
+                      <button key={i}
+                        onMouseDown={() => { setForm(f => ({ ...f, note: s })); setShowSuggestions(false); }}
+                        style={{
+                          display: "block", width: "100%", textAlign: "left",
+                          padding: "9px 14px", fontSize: 13, color: "var(--text)",
+                          background: "transparent", border: "none", cursor: "pointer",
+                          borderBottom: i < suggestions.length - 1 ? "1px solid var(--border)" : "none",
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >{s}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="input" />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={addEntry} className="btn-primary" style={{ flex: 1 }} disabled={saving}>
+                  {saving ? "Saving..." : editEntry ? "Save Changes" : "Add Transaction"}
+                </button>
+                {editEntry && <button onClick={closeForm} className="btn-cancel">Cancel</button>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Category Manager (z 200, rendered outside form modal so it layers on top) ── */}
       {catModal && (
         <CategoryManager
           type={catModal}
@@ -525,27 +576,8 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
           onClose={() => setCatModal(null)}
         />
       )}
-      {showTransfer && (
-        <Transfermodal
-          accounts={accounts}
-          userId={userId}
-          today={today}
-          onTransferDone={newEntries => onEntriesChange([...newEntries, ...entries])}
-          onClose={() => setShowTransfer(false)}
-        />
-      )}
-      {catHistory && (
-        <CategoryHistoryModal
-          category={catHistory.category}
-          type={catHistory.type}
-          entries={entries}
-          accounts={accounts}
-          getCatColor={getCatColor}
-          onClose={() => setCatHistory(null)}
-        />
-      )}
 
-      {/* Header */}
+      {/* ── Page Header ── */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Finance Tracker</h1>
@@ -559,7 +591,7 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
         </div>
       </div>
 
-      {/* Stats */}
+      {/* ── Stats ── */}
       <div className="stat-grid">
         <div className="stat-card income-card">
           <div className="stat-icon">↑</div>
@@ -575,83 +607,16 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
         </div>
       </div>
 
-      {/* Add / Edit Transaction */}
-      <div className="card">
-        <h2 className="card-title">{editEntry ? "✏️ Edit Transaction" : "Add Transaction"}</h2>
-        <div className="form-group">
-          <div className="type-toggle">
-            {["expense", "income"].map(t => (
-              <button key={t} onClick={() => handleTypeChange(t)} className={`toggle-btn ${form.type === t ? "active-" + t : ""}`}>
-                {t === "expense" ? "− Expense" : "+ Income"}
-              </button>
-            ))}
-          </div>
-          <input type="number" placeholder="Amount" value={form.amount}
-            onChange={e => setForm({ ...form, amount: e.target.value })} className="input" />
-          <div className="cat-select-row">
-            <select key={form.type} value={form.category}
-              onChange={e => setForm({ ...form, category: e.target.value })}
-              className="input" style={{ flex: 1, minWidth: 0 }}>
-              {currentCats.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
-            </select>
-            <button className="btn-manage-cats" onClick={() => setCatModal(form.type)}>⚙ Manage</button>
-          </div>
-          <select value={form.accountId} onChange={e => setForm({ ...form, accountId: e.target.value })} className="input">
-            {(accounts || []).map(a => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
-          </select>
-
-          {/* Note with auto-suggest */}
-          <div style={{ position: "relative" }}>
-            <input
-              type="text" placeholder="Note (optional)" value={form.note}
-              onChange={e => setForm({ ...form, note: e.target.value })}
-              onFocus={() => setShowSuggestions(suggestions.length > 0)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              className="input"
-            />
-            {showSuggestions && (
-              <div style={{
-                position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
-                background: "var(--surface)", border: "1px solid var(--border)",
-                borderRadius: "var(--radius-md)", overflow: "hidden",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.3)", marginTop: 4,
-              }}>
-                {suggestions.map((s, i) => (
-                  <button key={i}
-                    onMouseDown={() => { setForm(f => ({ ...f, note: s })); setShowSuggestions(false); }}
-                    style={{
-                      display: "block", width: "100%", textAlign: "left",
-                      padding: "9px 14px", fontSize: 13, color: "var(--text)",
-                      background: "transparent", border: "none", cursor: "pointer",
-                      borderBottom: i < suggestions.length - 1 ? "1px solid var(--border)" : "none",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                  >{s}</button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="input" />
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={addEntry} className="btn-primary" style={{ flex: 1 }} disabled={saving}>
-              {saving ? "Saving..." : editEntry ? "Save Changes" : "Add Transaction"}
-            </button>
-            {editEntry && <button onClick={cancelEdit} className="btn-cancel">Cancel</button>}
-          </div>
-        </div>
-      </div>
-
-      {/* Monthly Ledger */}
+      {/* ── Monthly Ledger ── */}
       <div className="card">
         <div className="card-header-row">
           <h2 className="card-title">Monthly Ledger</h2>
-          <input type="month" value={ledgerMonth}
+          <input
+            type="month" value={ledgerMonth}
             onChange={e => setFilterDate(e.target.value + "-01")}
-            className="input compact" style={{ width: "auto" }} />
+            className="input compact" style={{ width: "auto" }}
+          />
         </div>
-
         {monthlyGrouped.length === 0 ? (
           <p className="empty-msg">No transactions for this month.</p>
         ) : (
@@ -710,7 +675,9 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
                           </div>
                           <div className="entry-right">
                             <span className={`entry-amount ${e.type}`}>{e.type === "income" ? "+" : "−"}₹{e.amount}</span>
-                            {!Boolean(e.isTransfer) && <button onClick={() => startEdit(e)} className="edit-btn" title="Edit">✎</button>}
+                            {!Boolean(e.isTransfer) && (
+                              <button onClick={() => startEdit(e)} className="edit-btn" title="Edit">✎</button>
+                            )}
                             <button
                               onClick={() => handleDelete(e.id)}
                               className={`del-btn ${confirmId === e.id ? "del-btn-confirm" : ""}`}
@@ -729,6 +696,49 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
           </div>
         )}
       </div>
+
+      {/* ── Floating Add Button ── */}
+      {/* bottom: 32px desktop, 80px mobile (clears the bottom nav bar) */}
+      <style>{`
+        .fab-add {
+          position: fixed;
+          right: 28px;
+          bottom: 32px;
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          background: var(--accent);
+          color: #fff;
+          font-size: 28px;
+          font-weight: 300;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+          z-index: 90;
+          transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .fab-add:hover {
+          transform: scale(1.08);
+          box-shadow: 0 6px 28px rgba(0,0,0,0.45);
+        }
+        @media (max-width: 768px) {
+          .fab-add {
+            bottom: 76px;
+            right: 20px;
+          }
+        }
+      `}</style>
+      <button
+        className="fab-add"
+        onClick={() => setShowForm(true)}
+        title="Add transaction"
+      >
+        +
+      </button>
+
     </div>
   );
 }
