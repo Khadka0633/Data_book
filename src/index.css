@@ -1895,3 +1895,116 @@ option { background: var(--surface-2); color: var(--text); }
   }
 }
 
+/* ── Flat ledger rows (CalcBox style) ── */
+.entry-row {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  padding: 10px 4px !important;
+}
+
+.entry-row:hover {
+  background: var(--surface-2) !important;
+}
+
+.entry-note {
+  font-size: 13px;
+}
+
+.entry-meta {
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+.entry-amount {
+  font-size: 14px;
+}
+
+/* ── Compact inline stat cards ── */
+.stat-grid {
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 10px !important;
+}
+
+.stat-card {
+  padding: 12px 14px !important;
+  gap: 10px !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.stat-icon {
+  width: 32px !important;
+  height: 32px !important;
+  font-size: 14px !important;
+  border-radius: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+.stat-label {
+  font-size: 9px !important;
+  letter-spacing: 0.6px !important;
+}
+
+.stat-value {
+  font-size: 16px !important;
+  margin-top: 1px !important;
+}
+
+@media (max-width: 400px) {
+  .stat-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+  }
+  .stat-value {
+    font-size: 13px !important;
+  }
+  .stat-label {
+    font-size: 8px !important;
+  }
+  .stat-card {
+    padding: 10px 8px !important;
+    gap: 6px !important;
+  }
+  .stat-icon {
+    display: none !important;
+  }
+}
+/* ── Flat account cards ── */
+.account-card {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  padding: 12px 4px !important;
+  box-shadow: none !important;
+}
+
+.account-card:hover {
+  background: var(--surface-2) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.accounts-grid {
+  grid-template-columns: 1fr !important;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+
+/* ── Flat group header ── */
+.card > div > div[style*="border"] {
+  border-radius: var(--radius-sm) !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  background: transparent !important;
+}
+
+.account-balance {
+  font-size: 15px !important;
+}
+
+.account-name {
+  font-size: 13px !important;
+  color: var(--text) !important;
+}
