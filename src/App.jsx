@@ -7,7 +7,6 @@ import Account from "./components/Account";
 import ChartsTab from "./components/ChartsTab";
 import BudgetGoals from "./components/BudgetGoals";
 import Insights from "./components/Insights";
-import Journal from "./components/Journal";
 
 // ── Theme toggle ───────────────────────────────────────────────────
 function useTheme() {
@@ -103,8 +102,6 @@ export default function App() {
         return <BudgetGoals userId={userId} entries={entries} expCats={expCats} />;
       case "insights":
         return <Insights userId={userId} entries={entries} expCats={expCats} incCats={incCats} />;
-      case "journal":
-        return <Journal userId={userId} />;
       default:
         return null;
     }

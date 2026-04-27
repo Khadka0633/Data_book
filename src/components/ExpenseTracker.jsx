@@ -20,7 +20,7 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
   const chartRef  = useRef(null);
 
   const catEntries = entries
-    .filter(e => e.category === category && e.type === type && !e.isTransfer)
+    .filter(e => e.category === category && e.type === type && !Boolean(e.isTransfer))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const total = catEntries.reduce((s, e) => s + e.amount, 0);
@@ -427,8 +427,8 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
   };
 
   // ─── Derived stats ────────────────────────────────────────────
-  const totalIncome  = entries.filter(e => e.type === "income"  && !e.isTransfer).reduce((s, e) => s + e.amount, 0);
-  const totalExpense = entries.filter(e => e.type === "expense" && !e.isTransfer).reduce((s, e) => s + e.amount, 0);
+  const totalIncome  = entries.filter(e => e.type === "income"  && !Boolean(e.isTransfer)).reduce((s, e) => s + e.amount, 0);
+  const totalExpense = entries.filter(e => e.type === "expense" && !Boolean(e.isTransfer)).reduce((s, e) => s + e.amount, 0);
   const balance      = totalIncome - totalExpense;
 
   // ─── Ledger ───────────────────────────────────────────────────
@@ -469,10 +469,22 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
   };
 
   const startEdit = e => {
-    setEditEntry(e.id);
-    setForm({ type: e.type, amount: String(e.amount), category: e.category, note: e.note, date: e.date, accountId: e.accountId });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  setEditEntry(e.id);
+  setForm({ 
+    type: e.type, 
+    amount: String(e.amount), 
+    category: e.category, 
+    note: e.note, 
+    date: e.date, 
+    accountId: e.accountId 
+  });
+  // Fix: scroll the actual container, not window
+  setTimeout(() => {
+    const container = document.querySelector(".main-content");
+    if (container) container.scrollTo({ top: 0, behavior: "smooth" });
+    else window.scrollTo({ top: 0, behavior: "smooth" });
+  }, 50);
+};
 
   const cancelEdit = () => {
     setEditEntry(null);
@@ -483,7 +495,7 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
     if (confirmId === id) {
       const entry = entries.find(e => e.id === id);
       if (entry?.isTransfer) {
-        const paired = entries.find(e => e.id !== id && e.isTransfer && e.amount === entry.amount && e.date === entry.date && e.type !== entry.type);
+        const paired = entries.find(e => e.id !== id && Boolean(e.isTransfer) && e.amount === entry.amount && e.date === entry.date && e.type !== entry.type);
         await pb.collection("entries").delete(id);
         if (paired) await pb.collection("entries").delete(paired.id);
         onEntriesChange(entries.filter(e => e.id !== id && e.id !== paired?.id));
@@ -670,21 +682,21 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
                     {dayEntries.map(e => {
                       const acc = (accounts || []).find(a => a.id === e.accountId);
                       return (
-                        <div key={e.id} className={`entry-row ${e.type} ${e.isTransfer ? "transfer-row" : ""}`}>
+                        <div key={e.id} className={`entry-row ${e.type} ${Boolean(e.isTransfer) ? "transfer-row" : ""}`}>
                           <div className="entry-left">
-                            {e.isTransfer
+                            {Boolean(e.isTransfer)
                               ? <span className="transfer-badge">↔</span>
                               : <span className="entry-cat-dot" style={{ background: getCatColor(e.category, e.type) }} />
                             }
                             <div>
                               <p className="entry-note">
                                 {e.note || e.category}
-                                {e.isTransfer && <span className="transfer-tag">Transfer</span>}
+                                {Boolean(e.isTransfer) && <span className="transfer-tag">Transfer</span>}
                               </p>
                               <p className="entry-meta">
                                 <span
-                                  onClick={() => !e.isTransfer && setCatHistory({ category: e.category, type: e.type })}
-                                  style={{ cursor: e.isTransfer ? "default" : "pointer", textDecoration: e.isTransfer ? "none" : "underline dotted" }}
+                                  onClick={() => !Boolean(e.isTransfer) && setCatHistory({ category: e.category, type: e.type })}
+                                  style={{ cursor: Boolean(e.isTransfer) ? "default" : "pointer", textDecoration: Boolean(e.isTransfer) ? "none" : "underline dotted" }}
                                 >
                                   {e.category}
                                 </span>
@@ -698,11 +710,11 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
                           </div>
                           <div className="entry-right">
                             <span className={`entry-amount ${e.type}`}>{e.type === "income" ? "+" : "−"}₹{e.amount}</span>
-                            {!e.isTransfer && <button onClick={() => startEdit(e)} className="edit-btn" title="Edit">✎</button>}
+                            {!Boolean(e.isTransfer) && <button onClick={() => startEdit(e)} className="edit-btn" title="Edit">✎</button>}
                             <button
                               onClick={() => handleDelete(e.id)}
                               className={`del-btn ${confirmId === e.id ? "del-btn-confirm" : ""}`}
-                              title={confirmId === e.id ? (e.isTransfer ? "Click again — will delete both legs" : "Click again to confirm") : "Delete"}
+                              title={confirmId === e.id ? (Boolean(e.isTransfer) ? "Click again — will delete both legs" : "Click again to confirm") : "Delete"}
                             >
                               {confirmId === e.id ? "?" : "✕"}
                             </button>
