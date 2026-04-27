@@ -626,8 +626,8 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
               const dayName    = d.toLocaleDateString("en-US", { weekday: "long" });
               const dayNum     = d.getDate();
               const monthName  = d.toLocaleDateString("en-US", { month: "short" });
-              const dayIncome  = dayEntries.filter(e => e.type === "income").reduce((s, e) => s + e.amount, 0);
-              const dayExpense = dayEntries.filter(e => e.type === "expense").reduce((s, e) => s + e.amount, 0);
+              const dayIncome  = dayEntries.filter(e => e.type === "income"  && !Boolean(e.isTransfer)).reduce((s, e) => s + e.amount, 0);
+const dayExpense = dayEntries.filter(e => e.type === "expense" && !Boolean(e.isTransfer)).reduce((s, e) => s + e.amount, 0);
               return (
                 <div key={date} style={{ borderBottom: "1px solid var(--border)" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 4px 8px", gap: 12 }}>
