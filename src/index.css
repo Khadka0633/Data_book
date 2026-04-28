@@ -1481,6 +1481,11 @@ option { background: var(--surface-2); color: var(--text); }
     font-size: 15px;
     width: 100%;
   }
+
+  .btn-primary.btn-inline {
+  width: auto;
+  white-space: nowrap;
+}
  
   .btn-cancel {
     padding: 13px 16px;
@@ -1875,26 +1880,28 @@ option { background: var(--surface-2); color: var(--text); }
   opacity: 0.08;
 }
 /* ── Mobile category input fix ── */
+/* ── Mobile category input fix ── */
 @media (max-width: 768px) {
   .cat-add-row {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
   }
 
   .cat-add-row .input {
     flex: 1;
     min-width: 0;
-    width: 100%;
-    background: var(--surface-2) !important;
-    color: var(--text) !important;
-    border: 1px solid var(--border-hover) !important;
     font-size: 16px;
   }
 
   .cat-add-row .btn-primary {
-    width: 100%;
+    width: auto;
+    white-space: nowrap;
+    padding: 10px 14px;
   }
 }
+
+
+
 
 /* ── Flat ledger rows (CalcBox style) ── */
 .entry-row {
@@ -2010,3 +2017,30 @@ option { background: var(--surface-2); color: var(--text); }
   color: var(--text) !important;
 }
 
+/* ── Charts mobile fixes ── */
+@media (max-width: 768px) {
+  .pie-wrapper {
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .pie-legend {
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+    display: grid;
+  }
+
+  .legend-label {
+    max-width: 80px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Category list rows — prevent overflow */
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+}

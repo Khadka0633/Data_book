@@ -103,7 +103,10 @@ function CategoryList({ entries, type, categories, chartMonth, onCategoryClick }
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
             <span style={{ width: 10, height: 10, borderRadius: "50%", background: cat.color, flexShrink: 0 }} />
-            <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: "var(--text)" }}>{cat.name}</span>
+           <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: "var(--text)", 
+  minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+  {cat.name}
+</span>
             <div style={{ width: 80, height: 5, background: "var(--surface-2)", borderRadius: 3, overflow: "hidden", flexShrink: 0 }}>
               <div style={{ width: `${pct}%`, height: "100%", background: cat.color, borderRadius: 3 }} />
             </div>

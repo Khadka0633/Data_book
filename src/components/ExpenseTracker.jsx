@@ -13,6 +13,10 @@ function ChartJsLoader() {
   return null;
 }
 
+
+
+
+
 function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, onClose }) {
   const canvasRef = useRef(null);
   const chartRef  = useRef(null);
@@ -246,6 +250,20 @@ function useNoteSuggestions(entries, form) {
   return { suggestions, showSuggestions, setShowSuggestions };
 }
 
+
+// Add this array at the top of the file (outside component):
+const CAT_COLORS = [
+  "#6366f1","#22c55e","#ef4444","#f97316","#eab308",
+  "#06b6d4","#8b5cf6","#ec4899","#14b8a6","#f43f5e",
+  "#84cc16","#0ea5e9","#a855f7","#fb923c","#10b981",
+];
+
+function getRandomColor(existing = []) {
+  const unused = CAT_COLORS.filter(c => !existing.includes(c));
+  const pool = unused.length > 0 ? unused : CAT_COLORS;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 // ── z-index ladder ────────────────────────────────────────────────
 // floating btn  : 90
 // form modal    : 100
@@ -253,32 +271,33 @@ function useNoteSuggestions(entries, form) {
 // cat history   : 300   ← sits on top of everything
 
 function CategoryManager({ type, categories, onAdd, onDelete, onClose }) {
-  const [newName,  setNewName]  = useState("");
-  const [newColor, setNewColor] = useState(type === "expense" ? "#f97316" : "#22c55e");
-  const [error,    setError]    = useState("");
+  const [newName, setNewName] = useState("");
+  const [error,   setError]   = useState("");
 
   const handleAdd = () => {
     const trimmed = newName.trim();
     if (!trimmed) return setError("Please enter a category name.");
-    if (categories.find(c => c.name.toLowerCase() === trimmed.toLowerCase())) return setError("This category already exists.");
-    onAdd({ name: trimmed, color: newColor });
+    if (categories.find(c => c.name.toLowerCase() === trimmed.toLowerCase()))
+      return setError("This category already exists.");
+    const color = getRandomColor(categories.map(c => c.color));
+    onAdd({ name: trimmed, color });
     setNewName(""); setError("");
   };
 
   return (
-    /* z-index 200 so it renders above the form modal (z 100) */
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 200 }}>
       <div className="modal-card" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">{type === "expense" ? "❤️ Expense" : "💚 Income"} Categories</h3>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
-        <div className="cat-add-row">
+        <div style={{ display: "flex", gap: 8 }}>
           <input className="input" placeholder="New category name..." value={newName}
             onChange={e => { setNewName(e.target.value); setError(""); }}
-            onKeyDown={e => e.key === "Enter" && handleAdd()} style={{ flex: 1 }} />
-          <input type="color" className="color-pick" value={newColor} onChange={e => setNewColor(e.target.value)} />
-          <button className="btn-primary" onClick={handleAdd} style={{ padding: "10px 16px", whiteSpace: "nowrap" }}>+ Add</button>
+            onKeyDown={e => e.key === "Enter" && handleAdd()}
+            style={{ flex: 1 }} />
+          <button className="btn-primary btn-inline" onClick={handleAdd}
+            style={{ padding: "10px 16px", whiteSpace: "nowrap", width: "auto" }}>+ Add</button>
         </div>
         {error && <p className="cat-error">{error}</p>}
         <div className="cat-list">
@@ -286,7 +305,9 @@ function CategoryManager({ type, categories, onAdd, onDelete, onClose }) {
             <div key={i} className="cat-item">
               <span className="cat-dot" style={{ background: c.color }} />
               <span className="cat-name">{c.name}</span>
-              {categories.length > 1 && <button className="cat-del-btn" onClick={() => onDelete(c.name)}>✕</button>}
+              {categories.length > 1 && (
+                <button className="cat-del-btn" onClick={() => onDelete(c.name)}>✕</button>
+              )}
             </div>
           ))}
         </div>
@@ -298,22 +319,34 @@ function CategoryManager({ type, categories, onAdd, onDelete, onClose }) {
 
 function LoadingScreen() {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: 16 }}>
-      <div style={{ width: 40, height: 40, border: "3px solid var(--border)", borderTop: "3px solid var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+    <div style={{ 
+      display: "flex", alignItems: "center", justifyContent: "center", 
+      height: "60vh", flexDirection: "column", gap: 16 
+    }}>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 8px var(--accent)); }
+          50% { opacity: 0.5; transform: scale(0.92); filter: drop-shadow(0 0 20px var(--accent)); }
+        }
+      `}</style>
+      <span style={{
+        fontSize: 48,
+        color: "var(--accent)",
+        animation: "pulse 1.5s ease-in-out infinite",
+        display: "inline-block",
+        lineHeight: 1,
+      }}>⬡</span>
       <p style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading your data...</p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
 
-export default function ExpenseTracker({ userId, accounts, entries, onEntriesChange }) {
+export default function ExpenseTracker({ userId, accounts, entries, onEntriesChange, showForm, setShowForm }) {
   const today = new Date().toISOString().split("T")[0];
 
   const [loading,      setLoading]      = useState(true);
   const [expCats,      setExpCats]      = useState([]);
   const [incCats,      setIncCats]      = useState([]);
-  const [showForm,     setShowForm]     = useState(false);
-
   const [form, setForm] = useState({
     type: "expense", amount: "", category: "", note: "", date: today,
     accountId: accounts?.[0]?.id || "",
@@ -404,12 +437,49 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
 
   const ledgerMonth = filterDate.slice(0, 7);
 
+
+  const changeMonth = dir => {
+  const d = new Date(filterDate + "T00:00:00");
+  d.setMonth(d.getMonth() + dir);
+  setFilterDate(d.toISOString().split("T")[0]);
+};
+
+const monthLabel = new Date(filterDate + "T00:00:00")
+  .toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+const isCurrentMonth = ledgerMonth === today.slice(0, 7);
+
   const monthlyGrouped = useMemo(() => {
-    const filtered = entries.filter(e => e.date.slice(0, 7) === ledgerMonth);
-    const groups = {};
-    filtered.forEach(e => { if (!groups[e.date]) groups[e.date] = []; groups[e.date].push(e); });
-    return Object.keys(groups).sort((a, b) => b.localeCompare(a)).map(date => ({ date, entries: groups[date] }));
-  }, [entries, ledgerMonth]);
+  const filtered = entries.filter(e => e.date.slice(0, 7) === ledgerMonth);
+
+  // Collapse transfer pairs into single entries
+  const seen = new Set();
+  const collapsed = [];
+  filtered.forEach(e => {
+    if (!Boolean(e.isTransfer)) { collapsed.push(e); return; }
+    if (seen.has(e.id)) return;
+    // Find the paired leg (same date, same amount, opposite type)
+    const pair = filtered.find(p =>
+      p.id !== e.id && Boolean(p.isTransfer) &&
+      p.amount === e.amount && p.date === e.date &&
+      p.type !== e.type
+    );
+    if (pair) {
+      seen.add(e.id);
+      seen.add(pair.id);
+      // Always use expense leg as "from", income leg as "to"
+      const fromEntry = e.type === "expense" ? e : pair;
+      const toEntry   = e.type === "income"  ? e : pair;
+      collapsed.push({ ...fromEntry, _transferTo: toEntry, _isPair: true });
+    } else {
+      collapsed.push(e); // unpaired, show as-is
+    }
+  });
+
+  const groups = {};
+  collapsed.forEach(e => { if (!groups[e.date]) groups[e.date] = []; groups[e.date].push(e); });
+  return Object.keys(groups).sort((a, b) => b.localeCompare(a)).map(date => ({ date, entries: groups[date] }));
+}, [entries, ledgerMonth]);
 
   const addEntry = async () => {
     if (!form.amount || isNaN(form.amount) || +form.amount <= 0) return;
@@ -497,13 +567,24 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
               <button className="modal-close" onClick={closeForm}>✕</button>
             </div>
             <div className="form-group">
-              <div className="type-toggle">
-                {["expense", "income"].map(t => (
-                  <button key={t} onClick={() => handleTypeChange(t)} className={`toggle-btn ${form.type === t ? "active-" + t : ""}`}>
-                    {t === "expense" ? "− Expense" : "+ Income"}
-                  </button>
-                ))}
-              </div>
+              
+
+            <div className="type-toggle">
+  {["expense", "income"].map(t => (
+    <button key={t} onClick={() => handleTypeChange(t)} className={`toggle-btn ${form.type === t ? "active-" + t : ""}`}>
+      {t === "expense" ? "− Expense" : "+ Income"}
+    </button>
+  ))}
+  <button
+    onClick={() => { closeForm(); setShowTransfer(true); }}
+    className="toggle-btn"
+    style={{ background: "rgba(99,102,241,0.12)", color: "var(--accent)", borderColor: "rgba(99,102,241,0.3)" }}
+  >
+    ↔ Transfer
+  </button>
+</div>
+
+
               <input
                 type="number" placeholder="Amount" value={form.amount}
                 onChange={e => setForm({ ...form, amount: e.target.value })}
@@ -555,12 +636,36 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
                 )}
               </div>
               <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="input" />
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={addEntry} className="btn-primary" style={{ flex: 1 }} disabled={saving}>
-                  {saving ? "Saving..." : editEntry ? "Save Changes" : "Add Transaction"}
-                </button>
-                {editEntry && <button onClick={closeForm} className="btn-cancel">Cancel</button>}
-              </div>
+
+
+
+            <div style={{ display: "flex", gap: 8 }}>
+  <button onClick={addEntry} className="btn-primary" style={{ flex: 1 }} disabled={saving}>
+    {saving ? "Saving..." : editEntry ? "Save Changes" : "Add Transaction"}
+  </button>
+  {editEntry && <button onClick={closeForm} className="btn-cancel">Cancel</button>}
+</div>
+{editEntry && (
+  <button
+    onClick={async () => {
+      await pb.collection("entries").delete(editEntry);
+      onEntriesChange(entries.filter(e => e.id !== editEntry));
+      closeForm();
+    }}
+    style={{
+      width: "100%", padding: "11px", borderRadius: "var(--radius-sm)",
+      background: "rgba(239,68,68,0.08)", color: "var(--red)",
+      border: "1px solid rgba(239,68,68,0.2)", fontSize: 14,
+      fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+    }}
+  >
+    🗑 Delete Transaction
+  </button>
+)}
+
+
+
+
             </div>
           </div>
         </div>
@@ -583,12 +688,12 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
           <h1 className="page-title">Finance Tracker</h1>
           <p className="page-sub">Monitor income, expenses &amp; accounts</p>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <button className="btn-transfer" onClick={() => setShowTransfer(true)}>↔ Transfer</button>
-          <div className="date-badge">
-            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-          </div>
-        </div>
+        
+      <div className="date-badge">
+  {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+</div>
+
+
       </div>
 
       {/* ── Stats ── */}
@@ -611,11 +716,14 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
       <div className="card">
         <div className="card-header-row">
           <h2 className="card-title">Monthly Ledger</h2>
-          <input
-            type="month" value={ledgerMonth}
-            onChange={e => setFilterDate(e.target.value + "-01")}
-            className="input compact" style={{ width: "auto" }}
-          />
+          
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+  <button onClick={() => changeMonth(-1)} style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", minWidth: 90, textAlign: "center" }}>{monthLabel}</span>
+  <button onClick={() => changeMonth(1)} disabled={isCurrentMonth} style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)", fontSize: 18, cursor: isCurrentMonth ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: isCurrentMonth ? 0.3 : 1 }}>›</button>
+</div>
+
+
         </div>
         {monthlyGrouped.length === 0 ? (
           <p className="empty-msg">No transactions for this month.</p>
@@ -644,51 +752,81 @@ const dayExpense = dayEntries.filter(e => e.type === "expense" && !Boolean(e.isT
                     </div>
                   </div>
                   <div className="entry-list" style={{ paddingBottom: 8 }}>
-                    {dayEntries.map(e => {
-                      const acc = (accounts || []).find(a => a.id === e.accountId);
-                      return (
-                        <div key={e.id} className={`entry-row ${e.type} ${Boolean(e.isTransfer) ? "transfer-row" : ""}`}>
-                          <div className="entry-left">
-                            {Boolean(e.isTransfer)
-                              ? <span className="transfer-badge">↔</span>
-                              : <span className="entry-cat-dot" style={{ background: getCatColor(e.category, e.type) }} />
-                            }
-                            <div>
-                              <p className="entry-note">
-                                {e.note || e.category}
-                                {Boolean(e.isTransfer) && <span className="transfer-tag">Transfer</span>}
-                              </p>
-                              <p className="entry-meta">
-                                <span
-                                  onClick={() => !Boolean(e.isTransfer) && setCatHistory({ category: e.category, type: e.type })}
-                                  style={{ cursor: Boolean(e.isTransfer) ? "default" : "pointer", textDecoration: Boolean(e.isTransfer) ? "none" : "underline dotted" }}
-                                >
-                                  {e.category}
-                                </span>
-                                {acc && (
-                                  <span className="entry-acc-tag" style={{ background: acc.color + "22", color: acc.color }}>
-                                    {acc.icon} {acc.name}
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="entry-right">
-                            <span className={`entry-amount ${e.type}`}>{e.type === "income" ? "+" : "−"}₹{e.amount}</span>
-                            {!Boolean(e.isTransfer) && (
-                              <button onClick={() => startEdit(e)} className="edit-btn" title="Edit">✎</button>
-                            )}
-                            <button
-                              onClick={() => handleDelete(e.id)}
-                              className={`del-btn ${confirmId === e.id ? "del-btn-confirm" : ""}`}
-                              title={confirmId === e.id ? (Boolean(e.isTransfer) ? "Click again — will delete both legs" : "Click again to confirm") : "Delete"}
-                            >
-                              {confirmId === e.id ? "?" : "✕"}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+
+
+{dayEntries.map(e => {
+  const acc = (accounts || []).find(a => a.id === e.accountId);
+
+
+  // ── Collapsed transfer row ──
+  if (e._isPair) {
+    const fromAcc = (accounts || []).find(a => a.id === e.accountId);
+    const toAcc   = (accounts || []).find(a => a.id === e._transferTo?.accountId);
+    return (
+      <div key={e.id} className="entry-row transfer-row" style={{ cursor: "default" }}>
+        <div className="entry-left">
+          <span className="transfer-badge">↔</span>
+          <div>
+            <p className="entry-note">
+              {fromAcc?.icon} {fromAcc?.name}
+              <span style={{ color: "var(--text-muted)", margin: "0 6px" }}>→</span>
+              {toAcc?.icon} {toAcc?.name}
+              <span className="transfer-tag">Transfer</span>
+            </p>
+            <p className="entry-meta">
+              {e.note?.replace(`Transfer to ${toAcc?.name}: `, "").replace(`Transfer to ${toAcc?.name}`, "") || ""}
+            </p>
+          </div>
+        </div>
+        <div className="entry-right">
+          <span className="entry-amount expense">−₹{e.amount}</span>
+          <button
+            onClick={() => handleDelete(e.id)}
+            className={`del-btn ${confirmId === e.id ? "del-btn-confirm" : ""}`}
+          >
+            {confirmId === e.id ? "?" : "✕"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Regular row ──
+  return (
+    <div
+      key={e.id}
+      className={`entry-row ${e.type}`}
+      onClick={() => startEdit(e)}
+      style={{ cursor: "pointer" }}
+    >
+      <div className="entry-left">
+        <span className="entry-cat-dot" style={{ background: getCatColor(e.category, e.type) }} />
+        <div>
+          <p className="entry-note">{e.note || e.category}</p>
+          <p className="entry-meta">
+            <span
+              onClick={ev => { ev.stopPropagation(); setCatHistory({ category: e.category, type: e.type }); }}
+              style={{ cursor: "pointer", textDecoration: "underline dotted" }}
+            >
+              {e.category}
+            </span>
+            {acc && (
+              <span className="entry-acc-tag" style={{ background: acc.color + "22", color: acc.color }}>
+                {acc.icon} {acc.name}
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+      <div className="entry-right">
+        <span className={`entry-amount ${e.type}`}>{e.type === "income" ? "+" : "−"}₹{e.amount}</span>
+      </div>
+    </div>
+  );
+})}
+
+
+
                   </div>
                 </div>
               );
