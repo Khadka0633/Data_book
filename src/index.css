@@ -2099,3 +2099,7 @@ option { background: var(--surface-2); color: var(--text); }
 .entry-list > div[style*="borderBottom"] {
   background: transparent !important;
 }
+
+.page .card > div > div {
+  background: transparent !important;
+}
