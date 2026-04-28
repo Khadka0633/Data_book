@@ -341,12 +341,14 @@ function LoadingScreen() {
   );
 }
 
-export default function ExpenseTracker({ userId, accounts, entries, onEntriesChange, showForm, setShowForm }) {
+export default function ExpenseTracker({ userId, accounts, entries, onEntriesChange }) {
   const today = new Date().toISOString().split("T")[0];
 
   const [loading,      setLoading]      = useState(true);
   const [expCats,      setExpCats]      = useState([]);
   const [incCats,      setIncCats]      = useState([]);
+  const [showForm,     setShowForm]     = useState(false);
+
   const [form, setForm] = useState({
     type: "expense", amount: "", category: "", note: "", date: today,
     accountId: accounts?.[0]?.id || "",
