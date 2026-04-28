@@ -2044,3 +2044,19 @@ option { background: var(--surface-2); color: var(--text); }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ── Day group separation in ledger ── */
+.day-group {
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+}
+
+.day-group-header {
+  padding: 10px 0 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}

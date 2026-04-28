@@ -188,7 +188,7 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
               })}
             </div>
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, fontWeight: 600 }}>Recent transactions</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {catEntries.slice(0, 20).map(e => {
                 const acc = accounts.find(a => a.id === e.accountId);
                 return (
@@ -739,8 +739,14 @@ const isCurrentMonth = ledgerMonth === today.slice(0, 7);
               const dayIncome  = dayEntries.filter(e => e.type === "income"  && !Boolean(e.isTransfer)).reduce((s, e) => s + e.amount, 0);
 const dayExpense = dayEntries.filter(e => e.type === "expense" && !Boolean(e.isTransfer)).reduce((s, e) => s + e.amount, 0);
               return (
-                <div key={date} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 4px 8px", gap: 12 }}>
+                <div key={date} className="day-group">
+                  <div className="day-group-header" style={{
+  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+  background:"rgba(244,63,94,0.10)",
+  borderRadius: "var(--radius-sm)",
+  padding: "8px 10px",
+  margin: "0 -10px",
+}}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                       <span style={{ fontSize: 22, fontWeight: 700, color: "var(--text)", lineHeight: 1 }}>{dayNum}</span>
                       <div>
