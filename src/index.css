@@ -2060,3 +2060,42 @@ option { background: var(--surface-2); color: var(--text); }
   border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
 }
+
+/* ── Stat grid mobile overflow fix ── */
+@media (max-width: 768px) {
+  .stat-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    overflow: hidden;
+  }
+
+  .stat-card {
+    padding: 10px 8px !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+    overflow: hidden;
+  }
+
+  .stat-value {
+    font-size: 13px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .stat-label {
+    font-size: 8px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .stat-icon {
+    display: none !important;
+  }
+}
+
+/* ── Remove dark background from day group rows ── */
+.entry-list > div[style*="borderBottom"] {
+  background: transparent !important;
+}
