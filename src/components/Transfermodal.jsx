@@ -164,7 +164,7 @@ export default function TransferModal({ accounts, userId, today, onTransferDone,
               onClick={handleTransfer}
               disabled={saving}
             >
-              {saving ? "Transferring..." : `Transfer${form.amount ? ` ₹${form.amount}` : ""}`}
+              {saving ? "Transferring..." : `Transfer${form.amount ? ` रु${form.amount}` : ""}`}
             </button>
             <button className="btn-cancel" onClick={onClose}>Cancel</button>
           </div>

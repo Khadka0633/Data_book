@@ -30,7 +30,7 @@ export default function Insights({ userId, entries, expCats = [], incCats = [] }
   // ── AI Chat ────────────────────────────────────────────────────
   const [messages,    setMessages]    = useState([{
     role: "assistant",
-    content: "Hey! I'm your AI Financial Coach 👋\n\nI have full access to your transactions and spending patterns. Ask me anything:\n• \"Can I afford a ₹15,000 purchase?\"\n• \"Where am I wasting money?\"\n• \"Compare this month vs last month\"",
+    content: "Hey! I'm your AI Financial Coach 👋\n\nI have full access to your transactions and spending patterns. Ask me anything:\n• \"Can I afford a रु15,000 purchase?\"\n• \"Where am I wasting money?\"\n• \"Compare this month vs last month\"",
   }]);
   const [chatInput,   setChatInput]   = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -88,7 +88,7 @@ export default function Insights({ userId, entries, expCats = [], incCats = [] }
       }
     });
     const topCat = Object.entries(thisSpend).sort((a, b) => b[1] - a[1])[0];
-    if (topCat) list.push({ icon: "🏆", text: `Your top expense category this month is ${topCat[0]} at ₹${topCat[1].toLocaleString()}.`, type: "info" });
+    if (topCat) list.push({ icon: "🏆", text: `Your top expense category this month is ${topCat[0]} at रु${topCat[1].toLocaleString()}.`, type: "info" });
     const thisIncome = entries.filter(e => e.type === "income" && !e.isTransfer && e.date.slice(0, 7) === thisMonth).reduce((s, e) => s + e.amount, 0);
     if (thisIncome > 0 && thisTotal > 0) {
       const rate = Math.round(((thisIncome - thisTotal) / thisIncome) * 100);
@@ -100,7 +100,7 @@ export default function Insights({ userId, entries, expCats = [], incCats = [] }
     const daysPassed = now.getDate();
     const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - daysPassed;
     if (thisTotal > 0 && daysPassed > 3)
-      list.push({ icon: "🔮", text: `At your current rate, you'll spend ~₹${Math.round(thisTotal + (thisTotal / daysPassed) * daysLeft).toLocaleString()} this month.`, type: "info" });
+      list.push({ icon: "🔮", text: `At your current rate, you'll spend ~रु${Math.round(thisTotal + (thisTotal / daysPassed) * daysLeft).toLocaleString()} this month.`, type: "info" });
     return list.slice(0, 6);
   }, [entries, thisMonth, lastMonth]);
 
@@ -120,18 +120,18 @@ export default function Insights({ userId, entries, expCats = [], incCats = [] }
     const allSum  = summarize(entries);
     const recent  = [...entries].filter(e => !e.isTransfer)
       .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25)
-      .map(e => `${e.date} ${e.type === "income" ? "+" : "-"}₹${e.amount} (${e.category}${e.note ? ": " + e.note : ""})`).join("\n");
-    return `You are a friendly personal finance coach for a user in Nepal. Currency is NPR (₹).
+      .map(e => `${e.date} ${e.type === "income" ? "+" : "-"}रु${e.amount} (${e.category}${e.note ? ": " + e.note : ""})`).join("\n");
+    return `You are a friendly personal finance coach for a user in Nepal. Currency is NPR (रु).
 Be specific, warm, and concise (3-5 sentences unless detail is asked). Reference actual numbers.
 
 TODAY: ${today}
-THIS MONTH (${thisMonth}): Income ₹${thisSum.income.toLocaleString()}, Expenses ₹${thisSum.expense.toLocaleString()}, Net ₹${thisSum.net.toLocaleString()}
+THIS MONTH (${thisMonth}): Income रु${thisSum.income.toLocaleString()}, Expenses रु${thisSum.expense.toLocaleString()}, Net रु${thisSum.net.toLocaleString()}
 By category: ${JSON.stringify(thisSum.byCategory)}
-LAST MONTH (${lastMonth}): Income ₹${lastSum.income.toLocaleString()}, Expenses ₹${lastSum.expense.toLocaleString()}
+LAST MONTH (${lastMonth}): Income रु${lastSum.income.toLocaleString()}, Expenses रु${lastSum.expense.toLocaleString()}
 By category: ${JSON.stringify(lastSum.byCategory)}
-ALL TIME: Income ₹${allSum.income.toLocaleString()}, Expenses ₹${allSum.expense.toLocaleString()}, Net ₹${allSum.net.toLocaleString()}
+ALL TIME: Income रु${allSum.income.toLocaleString()}, Expenses रु${allSum.expense.toLocaleString()}, Net रु${allSum.net.toLocaleString()}
 RECENT 25 TRANSACTIONS:\n${recent}
-BILLS: ${bills.length > 0 ? bills.map(b => `${b.name} ₹${b.amount} due day ${b.dueDay}`).join(", ") : "none"}`;
+BILLS: ${bills.length > 0 ? bills.map(b => `${b.name} रु${b.amount} due day ${b.dueDay}`).join(", ") : "none"}`;
   };
 
   // ── Generate AI insights (button) ─────────────────────────────
@@ -154,19 +154,19 @@ BILLS: ${bills.length > 0 ? bills.map(b => `${b.name} ₹${b.amount} due day ${b
       const lastExpense = lastMonthEntries.filter(e => e.type === "expense").reduce((s, e) => s + e.amount, 0);
       const recentEntries = [...entries].filter(e => !e.isTransfer)
         .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20)
-        .map(e => `${e.date} ${e.type === "income" ? "+" : "-"}₹${e.amount} (${e.category}${e.note ? ": " + e.note : ""})`);
+        .map(e => `${e.date} ${e.type === "income" ? "+" : "-"}रु${e.amount} (${e.category}${e.note ? ": " + e.note : ""})`);
 
       const prompt = `You are a personal finance advisor analyzing someone's expense data. Be concise, specific, and actionable.
 
 CURRENT MONTH (${thisMonth}):
-- Income: ₹${thisIncome.toLocaleString()}
-- Expenses: ₹${thisExpense.toLocaleString()}
-- Net: ₹${(thisIncome - thisExpense).toLocaleString()}
+- Income: रु${thisIncome.toLocaleString()}
+- Expenses: रु${thisExpense.toLocaleString()}
+- Net: रु${(thisIncome - thisExpense).toLocaleString()}
 - By category: ${JSON.stringify(summarize(thisMonthEntries))}
 
 LAST MONTH (${lastMonth}):
-- Income: ₹${lastIncome.toLocaleString()}
-- Expenses: ₹${lastExpense.toLocaleString()}
+- Income: रु${lastIncome.toLocaleString()}
+- Expenses: रु${lastExpense.toLocaleString()}
 - By category: ${JSON.stringify(summarize(lastMonthEntries))}
 
 RECENT 20 TRANSACTIONS:
@@ -259,7 +259,7 @@ Respond ONLY with a JSON array of 5 objects, no other text:
   const insightBorders = { warn: "rgba(249,115,22,0.3)",  good: "rgba(34,197,94,0.3)",  info: "rgba(99,102,241,0.25)" };
 
   const quickPrompts = [
-    "Can I afford a ₹15,000 purchase?",
+    "Can I afford a रु15,000 purchase?",
     "Where am I wasting money?",
     "How much did I spend on food?",
     "Compare this month vs last month",
@@ -396,7 +396,7 @@ Respond ONLY with a JSON array of 5 objects, no other text:
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <input className="input" placeholder="Bill name" style={{ flex: 2, minWidth: 120 }}
             value={bForm.name} onChange={e => { setBForm(f => ({ ...f, name: e.target.value })); setBError(""); }} />
-          <input className="input" type="number" placeholder="Amount (₹)" style={{ flex: 1, minWidth: 90 }}
+          <input className="input" type="number" placeholder="Amount (रु)" style={{ flex: 1, minWidth: 90 }}
             value={bForm.amount} onChange={e => setBForm(f => ({ ...f, amount: e.target.value }))} />
           <select className="input" style={{ flex: 1, minWidth: 80 }}
             value={bForm.dueDay} onChange={e => setBForm(f => ({ ...f, dueDay: e.target.value }))}>
@@ -425,7 +425,7 @@ Respond ONLY with a JSON array of 5 objects, no other text:
                     <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Due on day {bill.dueDay} each month</p>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>₹{bill.amount.toLocaleString()}</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>रु{bill.amount.toLocaleString()}</p>
                     <p style={{ fontSize: 11, fontWeight: 600, marginTop: 2, color: urgent ? "var(--red)" : soon ? "#f97316" : "var(--text-muted)" }}>
                       {days === 0 ? "Due today!" : days === 1 ? "Due tomorrow" : `${days} days`}
                     </p>
@@ -524,25 +524,36 @@ Respond ONLY with a JSON array of 5 objects, no other text:
         </div>
 
         {/* Input */}
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            className="input"
-            placeholder="Ask anything about your finances..."
-            value={chatInput}
-            onChange={e => setChatInput(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendChat()}
-            disabled={chatLoading}
-            style={{ flex: 1 }}
-          />
-          <button
-            onClick={sendChat}
-            disabled={chatLoading || !chatInput.trim()}
-            className="btn-primary"
-            style={{ padding: "10px 20px", whiteSpace: "nowrap", opacity: (!chatInput.trim() || chatLoading) ? 0.5 : 1 }}
-          >
-            {chatLoading ? "..." : "Ask"}
-          </button>
-        </div>
+<div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+  <input
+    className="input"
+    placeholder="Ask anything about your finances..."
+    value={chatInput}
+    onChange={e => setChatInput(e.target.value)}
+    onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendChat()}
+    disabled={chatLoading}
+    style={{ flex: 1, minWidth: 0 }}
+  />
+  <button
+    onClick={sendChat}
+    disabled={chatLoading || !chatInput.trim()}
+    className="btn-primary"
+    style={{ 
+      width: "auto",
+      flexShrink: 0,
+      padding: "10px 20px", 
+      whiteSpace: "nowrap", 
+      opacity: (!chatInput.trim() || chatLoading) ? 0.5 : 1 
+    }}
+  >
+    {chatLoading ? "..." : "Ask"}
+  </button>
+</div>
+
+
+
+
+
         <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, textAlign: "center" }}>
           The coach has access to your transactions, categories, and bills.
         </p>

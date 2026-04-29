@@ -39,13 +39,13 @@ function PieChart({ data, label = "TOTAL", onSliceClick }) {
           <path key={i} d={s.path} fill={s.color} opacity="0.9"
             onClick={() => onSliceClick && onSliceClick(s.label)}
             style={{ cursor: onSliceClick ? "pointer" : "default" }}>
-            <title>{s.label}: ₹{s.value.toFixed(2)} ({(s.pct * 100).toFixed(1)}%)</title>
+            <title>{s.label}: रु{s.value.toFixed(2)} ({(s.pct * 100).toFixed(1)}%)</title>
           </path>
         ))}
         <circle cx={cx} cy={cy} r="45" fill="var(--surface)" />
         <text x={cx} y={cy - 8} textAnchor="middle" fill="var(--text-muted)" fontSize="9">{label}</text>
         <text x={cx} y={cy + 8} textAnchor="middle" fill="var(--text)" fontSize="13" fontWeight="600">
-          ₹{total.toFixed(0)}
+          रु{total.toFixed(0)}
         </text>
       </svg>
       <div className="pie-legend">
@@ -55,7 +55,7 @@ function PieChart({ data, label = "TOTAL", onSliceClick }) {
             style={{ cursor: onSliceClick ? "pointer" : "default" }}>
             <span className="legend-dot" style={{ background: s.color }} />
             <span className="legend-label">{s.label}</span>
-            <span className="legend-val">₹{s.value.toFixed(0)}</span>
+            <span className="legend-val">रु{s.value.toFixed(0)}</span>
           </div>
         ))}
       </div>
@@ -112,7 +112,7 @@ function CategoryList({ entries, type, categories, chartMonth, onCategoryClick }
             </div>
             <span style={{ fontSize: 12, color: "var(--text-muted)", width: 34, textAlign: "right", flexShrink: 0 }}>{pct}%</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", width: 90, textAlign: "right", flexShrink: 0 }}>
-              ₹{cat.amount.toLocaleString()}
+              रु{cat.amount.toLocaleString()}
             </span>
             <span style={{ fontSize: 13, color: "var(--text-muted)", flexShrink: 0 }}>›</span>
           </div>
@@ -195,7 +195,7 @@ function CategoryModal({ category, type, color, entries, onClose }) {
                 label: ctx => {
                   const slot = monthData[ctx.dataIndex];
                   if (slot.total === 0) return "No transactions";
-                  return [`₹${slot.total.toLocaleString()}`, `${slot.count} transaction${slot.count !== 1 ? "s" : ""}`];
+                  return [`रु${slot.total.toLocaleString()}`, `${slot.count} transaction${slot.count !== 1 ? "s" : ""}`];
                 },
               },
               backgroundColor: "#1e1e2e", titleColor: "#fff", bodyColor: "#ccc", padding: 10, cornerRadius: 8,
@@ -213,7 +213,7 @@ function CategoryModal({ category, type, color, entries, onClose }) {
               border: { display: false },
               ticks: {
                 font: { size: 11 }, color: "#888",
-                callback: v => v === 0 ? "0" : `₹${v >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`,
+                callback: v => v === 0 ? "0" : `रु${v >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`,
                 maxTicksLimit: 5,
               },
             },
@@ -255,9 +255,9 @@ function CategoryModal({ category, type, color, entries, onClose }) {
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
               {[
-                { label: "All-time total", value: `₹${allTimeTotal.toLocaleString()}` },
+                { label: "All-time total", value: `रु${allTimeTotal.toLocaleString()}` },
                 { label: "Transactions",   value: catEntries.length },
-                { label: "Avg per entry",  value: `₹${avg.toLocaleString()}` },
+                { label: "Avg per entry",  value: `रु${avg.toLocaleString()}` },
               ].map(s => (
                 <div key={s.label} style={{ background: "var(--surface-2)", borderRadius: "var(--radius-md)", padding: "10px 12px", textAlign: "center" }}>
                   <p style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>{s.label}</p>
@@ -273,7 +273,7 @@ function CategoryModal({ category, type, color, entries, onClose }) {
                 borderRadius: "var(--radius-md)", padding: "9px 14px", marginBottom: 16,
               }}>
                 <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Peak month</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color }}>{peakMonth.lbl} — ₹{peakMonth.total.toLocaleString()}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color }}>{peakMonth.lbl} — रु{peakMonth.total.toLocaleString()}</span>
               </div>
             )}
 
@@ -297,7 +297,7 @@ function CategoryModal({ category, type, color, entries, onClose }) {
                     <div style={{ flex: 1, background: "var(--surface-2)", borderRadius: 4, height: 6, overflow: "hidden" }}>
                       <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 4, opacity: 0.8 }} />
                     </div>
-                    <span style={{ fontSize: 12, color: "var(--text)", width: 90, textAlign: "right", flexShrink: 0, fontWeight: 600 }}>₹{m.total.toLocaleString()}</span>
+                    <span style={{ fontSize: 12, color: "var(--text)", width: 90, textAlign: "right", flexShrink: 0, fontWeight: 600 }}>रु{m.total.toLocaleString()}</span>
                     <span style={{ fontSize: 11, color: "var(--text-muted)", width: 32, textAlign: "right", flexShrink: 0 }}>×{m.count}</span>
                   </div>
                 );
@@ -315,7 +315,7 @@ function CategoryModal({ category, type, color, entries, onClose }) {
                     </p>
                   </div>
                   <span style={{ fontSize: 14, fontWeight: 700, color: type === "expense" ? "var(--red)" : "var(--green)" }}>
-                    {type === "income" ? "+" : "−"}₹{e.amount.toLocaleString()}
+                    {type === "income" ? "+" : "−"}रु{e.amount.toLocaleString()}
                   </span>
                 </div>
               ))}
@@ -392,7 +392,7 @@ function NetWorthChart({ entries, accounts }) {
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: ctx => `Net Worth: ₹${ctx.parsed.y.toLocaleString()}`,
+                label: ctx => `Net Worth: रु${ctx.parsed.y.toLocaleString()}`,
               },
               backgroundColor: "#1e1e2e", titleColor: "#fff", bodyColor: "#ccc", padding: 10, cornerRadius: 8,
             },
@@ -408,7 +408,7 @@ function NetWorthChart({ entries, accounts }) {
               border: { display: false },
               ticks: {
                 font: { size: 11 }, color: "#888",
-                callback: v => `₹${v >= 1000 || v <= -1000 ? (v / 1000).toFixed(0) + "k" : v}`,
+                callback: v => `रु${v >= 1000 || v <= -1000 ? (v / 1000).toFixed(0) + "k" : v}`,
                 maxTicksLimit: 5,
               },
             },
@@ -436,10 +436,10 @@ function NetWorthChart({ entries, accounts }) {
         <h2 className="card-title" style={{ marginBottom: 0 }}>📈 Net Worth Timeline</h2>
         <div style={{ textAlign: "right" }}>
           <p style={{ fontSize: 18, fontWeight: 700, color: current >= 0 ? "var(--green)" : "var(--red)" }}>
-            ₹{current.toLocaleString()}
+            रु{current.toLocaleString()}
           </p>
           <p style={{ fontSize: 11, color: change >= 0 ? "var(--green)" : "var(--red)", marginTop: 2 }}>
-            {change >= 0 ? "+" : ""}₹{change.toLocaleString()} vs last month
+            {change >= 0 ? "+" : ""}रु{change.toLocaleString()} vs last month
           </p>
         </div>
       </div>
@@ -582,15 +582,15 @@ export default function ChartsTab({ userId, entries: propEntries, accounts: prop
       <div className="stat-grid">
         <div className="stat-card income-card">
           <div className="stat-icon">↑</div>
-          <div><p className="stat-label">Income</p><p className="stat-value">₹{monthlyIncome.toLocaleString()}</p></div>
+          <div><p className="stat-label">Income</p><p className="stat-value">रु{monthlyIncome.toLocaleString()}</p></div>
         </div>
         <div className="stat-card expense-card">
           <div className="stat-icon">↓</div>
-          <div><p className="stat-label">Expenses</p><p className="stat-value">₹{monthlyExpense.toLocaleString()}</p></div>
+          <div><p className="stat-label">Expenses</p><p className="stat-value">रु{monthlyExpense.toLocaleString()}</p></div>
         </div>
         <div className={`stat-card ${monthlySavings >= 0 ? "balance-pos" : "balance-neg"}`}>
           <div className="stat-icon">◈</div>
-          <div><p className="stat-label">Saved</p><p className="stat-value">₹{monthlySavings.toLocaleString()}</p></div>
+          <div><p className="stat-label">Saved</p><p className="stat-value">रु{monthlySavings.toLocaleString()}</p></div>
         </div>
       </div>
 

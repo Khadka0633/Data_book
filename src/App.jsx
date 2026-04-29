@@ -59,6 +59,9 @@ export default function App() {
   const accountBalances = useMemo(() => {
     const map = {};
     accounts.forEach(a => { map[a.id] = 0; });
+
+
+
     entries.forEach(e => {
       if (Object.prototype.hasOwnProperty.call(map, e.accountId)) {
         map[e.accountId] += e.type === "income" ? e.amount : -e.amount;
@@ -66,6 +69,8 @@ export default function App() {
     });
     return map;
   }, [entries, accounts]);
+
+  
 
   const handleLogin  = (u) => setUser(u);
   const handleLogout = () => {

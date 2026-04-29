@@ -37,6 +37,355 @@ function IconPicker({ value, onChange }) {
   );
 }
 
+// ─── Entry Form (Add / Edit) ──────────────────────────────────────
+function EntryForm({ account, entry, expCats, incCats, onSave, onDelete, onCancel }) {
+  const isEdit = Boolean(entry);
+  const today = new Date().toISOString().split("T")[0];
+
+  const initialType = entry?.type || "expense";
+  const initialCats = initialType === "expense" ? expCats : incCats;
+
+  const [draft, setDraft] = useState({
+    type:     initialType,
+    amount:   entry?.amount ? String(entry.amount) : "",
+    category: entry?.category || initialCats[0]?.name || "",
+    note:     entry?.note     || "",
+    date:     entry?.date     || today,
+  });
+  const [error, setError] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  const set = (k, v) => { setDraft(d => ({ ...d, [k]: v })); setError(""); };
+
+  // When type changes, reset category to first of that type's cats
+  const handleTypeChange = t => {
+    const cats = t === "expense" ? expCats : incCats;
+    setDraft(d => ({ ...d, type: t, category: cats[0]?.name || "" }));
+    setError("");
+  };
+
+  const currentCats = draft.type === "expense" ? expCats : incCats;
+
+  const handleSave = () => {
+    const amt = parseFloat(draft.amount);
+    if (!draft.amount || isNaN(amt) || amt <= 0) return setError("Enter a valid amount.");
+    if (!draft.category.trim()) return setError("Category is required.");
+    if (!draft.date) return setError("Date is required.");
+    onSave({ ...draft, amount: amt, category: draft.category.trim(), note: draft.note.trim() });
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Type Toggle */}
+      <div style={{ display: "flex", borderRadius: "var(--radius-sm)", overflow: "hidden", border: "1px solid var(--border)" }}>
+        {["expense", "income"].map(t => (
+          <button key={t} onClick={() => handleTypeChange(t)} style={{
+            flex: 1, padding: "10px", fontSize: 13, fontWeight: 600,
+            background: draft.type === t ? (t === "income" ? "var(--green)" : "var(--red)") : "var(--surface-2)",
+            color: draft.type === t ? "#fff" : "var(--text-muted)",
+            border: "none", cursor: "pointer", transition: "all 0.15s", textTransform: "capitalize",
+          }}>{t === "expense" ? "− Expense" : "+ Income"}</button>
+        ))}
+      </div>
+
+      {/* Amount */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label className="input-label">Amount (रु)</label>
+        <input className="input" type="number" placeholder="0" value={draft.amount}
+          onChange={e => set("amount", e.target.value)} style={{ fontSize: 18, fontWeight: 700 }} autoFocus />
+      </div>
+
+      {/* Category — dropdown from saved cats */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label className="input-label">Category</label>
+        {currentCats.length > 0 ? (
+          <select className="input" value={draft.category} onChange={e => set("category", e.target.value)}>
+            {currentCats.map(c => (
+              <option key={c.id || c.name} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+        ) : (
+          <p style={{ fontSize: 12, color: "var(--text-muted)", padding: "8px 0" }}>
+            No categories yet. Add them in the Finance tab.
+          </p>
+        )}
+      </div>
+
+      {/* Note */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label className="input-label">Note (optional)</label>
+        <input className="input" placeholder="Additional details…" value={draft.note}
+          onChange={e => set("note", e.target.value)} />
+      </div>
+
+      {/* Date */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label className="input-label">Date</label>
+        <input className="input" type="date" value={draft.date}
+          onChange={e => set("date", e.target.value)} />
+      </div>
+
+      {error && <p className="cat-error">{error}</p>}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <button className="btn-primary" style={{ flex: 1 }} onClick={handleSave}>
+          {isEdit ? "Save Changes" : "Add Entry"}
+        </button>
+        <button className="btn-cancel" onClick={onCancel}>Cancel</button>
+      </div>
+
+      {/* Delete (edit mode only) */}
+      {isEdit && !entry.isTransfer && (
+        confirmDel ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={{
+              flex: 1, background: "rgba(239,68,68,0.12)", color: "var(--red)",
+              border: "1px solid rgba(239,68,68,0.3)", borderRadius: "var(--radius-sm)",
+              padding: "10px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+            }} onClick={onDelete}>Confirm Delete</button>
+            <button className="btn-cancel" onClick={() => setConfirmDel(false)}>Cancel</button>
+          </div>
+        ) : (
+          <button style={{
+            background: "transparent", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)",
+            borderRadius: "var(--radius-sm)", padding: "10px", fontSize: 13, fontWeight: 600,
+            cursor: "pointer", transition: "all 0.15s",
+          }} onClick={() => setConfirmDel(true)}>🗑 Delete Entry</button>
+        )
+      )}
+    </div>
+  );
+}
+
+// ─── Account Detail Modal ─────────────────────────────────────────
+function AccountDetailModal({ account, entries, userId, onClose, onEntriesChange }) {
+  const [localEntries, setLocalEntries] = useState(entries);
+  const [mode, setMode]   = useState("list");
+  const [editing, setEditing] = useState(null);
+  const [expCats, setExpCats] = useState([]);
+  const [incCats, setIncCats] = useState([]);
+
+  // Keep in sync if parent entries change
+  useEffect(() => { setLocalEntries(entries); }, [entries]);
+
+  // Load categories from PocketBase (same collections as ExpenseTracker)
+  useEffect(() => {
+    if (!userId) return;
+    Promise.all([
+      pb.collection("expense_categories").getFullList({ filter: `userId = '${userId}'` }),
+      pb.collection("income_categories").getFullList({ filter: `userId = '${userId}'` }),
+    ]).then(([exp, inc]) => { setExpCats(exp); setIncCats(inc); })
+      .catch(err => console.error("Failed to load categories:", err));
+  }, [userId]);
+
+  const accEntries = localEntries
+    .filter(e => e.accountId === account.id)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const income  = accEntries.filter(e => e.type === "income").reduce((s, e) => s + e.amount, 0);
+  const expense = accEntries.filter(e => e.type === "expense").reduce((s, e) => s + e.amount, 0);
+  const balance = income - expense;
+
+  const groups = {};
+  accEntries.forEach(e => { if (!groups[e.date]) groups[e.date] = []; groups[e.date].push(e); });
+  const grouped = Object.keys(groups)
+    .sort((a, b) => b.localeCompare(a))
+    .map(date => ({ date, entries: groups[date] }));
+
+  // ── handlers ──
+  const handleAddSave = async draft => {
+    try {
+      const created = await pb.collection("entries").create({ ...draft, accountId: account.id, userId, isTransfer: false });
+      const updated = [...localEntries, created];
+      setLocalEntries(updated);
+      onEntriesChange(updated);
+      setMode("list");
+    } catch (err) { console.error("Add entry failed:", err); }
+  };
+
+  const handleEditSave = async draft => {
+    try {
+      const saved = await pb.collection("entries").update(editing.id, draft);
+      const updated = localEntries.map(e => e.id === saved.id ? saved : e);
+      setLocalEntries(updated);
+      onEntriesChange(updated);
+      setMode("list"); setEditing(null);
+    } catch (err) { console.error("Edit entry failed:", err); }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await pb.collection("entries").delete(editing.id);
+      const updated = localEntries.filter(e => e.id !== editing.id);
+      setLocalEntries(updated);
+      onEntriesChange(updated);
+      setMode("list"); setEditing(null);
+    } catch (err) { console.error("Delete entry failed:", err); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={mode === "list" ? onClose : undefined} style={{ zIndex: 300, alignItems: "flex-end" }}>
+      <div
+        className="modal-card"
+        onClick={e => e.stopPropagation()}
+        style={{
+          maxWidth: "100%", width: "100%", maxHeight: "90vh",
+          borderRadius: "var(--radius-lg) var(--radius-lg) 0 0",
+          overflowY: "auto", margin: 0,
+        }}
+      >
+        {/* Header */}
+        <div className="modal-header" style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {(mode === "add" || mode === "edit") && (
+              <button onClick={() => { setMode("list"); setEditing(null); }} style={{
+                background: "var(--surface-2)", border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)", padding: "5px 10px", fontSize: 14,
+                color: "var(--text)", cursor: "pointer",
+              }}>← Back</button>
+            )}
+            {mode === "list" && <span style={{ fontSize: 28 }}>{account.icon}</span>}
+            <div>
+              <h3 className="modal-title" style={{ marginBottom: 0 }}>
+                {mode === "add" ? "Add Transaction" : mode === "edit" ? "Edit Transaction" : account.name}
+              </h3>
+              {mode === "list" && (
+                <p style={{ fontSize: 12, color: account.color, marginTop: 2, textTransform: "capitalize" }}>
+                  {account.group}
+                </p>
+              )}
+            </div>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        {mode === "add" && (
+          <EntryForm
+            account={account}
+            expCats={expCats}
+            incCats={incCats}
+            onSave={handleAddSave}
+            onCancel={() => setMode("list")}
+          />
+        )}
+
+        {mode === "edit" && editing && (
+          <EntryForm
+            account={account}
+            entry={editing}
+            expCats={expCats}
+            incCats={incCats}
+            onSave={handleEditSave}
+            onDelete={handleDelete}
+            onCancel={() => { setMode("list"); setEditing(null); }}
+          />
+        )}
+
+        {mode === "list" && (<>
+          {/* Stats */}
+          <div style={{
+            display: "flex", gap: 0, marginBottom: 16,
+            background: "var(--surface-2)", borderRadius: "var(--radius-md)",
+            overflow: "hidden", border: "1px solid var(--border)",
+          }}>
+            {[
+              { label: "Income",  value: `रु${income.toLocaleString()}`,            color: "var(--green)" },
+              { label: "Expense", value: `रु${expense.toLocaleString()}`,           color: "var(--red)" },
+              { label: "Balance", value: `रु${Math.abs(balance).toLocaleString()}`, color: balance >= 0 ? "var(--green)" : "var(--red)" },
+            ].map((s, i) => (
+              <div key={s.label} style={{
+                flex: 1, padding: "12px 8px", textAlign: "center",
+                borderRight: i < 2 ? "1px solid var(--border)" : "none",
+              }}>
+                <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{s.label}</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: s.color }}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Add button */}
+          <style>{`
+            .acc-detail-fab { position: fixed; right: 28px; bottom: 32px; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 26px; font-weight: 300; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(99,102,241,0.4); z-index: 400; transition: transform 0.15s, box-shadow 0.15s; }
+            .acc-detail-fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(99,102,241,0.5); }
+            @media (max-width: 768px) { .acc-detail-fab { bottom: 76px; right: 18px; width: 48px; height: 48px; font-size: 24px; } }
+          `}</style>
+          <button className="acc-detail-fab" onClick={() => setMode("add")} title="Add transaction">+</button>
+
+          {/* Entries List */}
+          {accEntries.length === 0 ? (
+            <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "32px 0", fontSize: 13 }}>
+              No transactions yet. Tap + to add one.
+            </p>
+          ) : (
+            grouped.map(({ date, entries: dayEntries }) => {
+              const d = new Date(date + "T00:00:00");
+              return (
+                <div key={date} style={{ marginBottom: 4 }}>
+                  <div style={{ padding: "8px 0 4px", borderBottom: "1px solid var(--border)" }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                      {d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                    </span>
+                  </div>
+                  {dayEntries.map((e, idx) => (
+                    <div
+                      key={`${e.id}-${idx}`}
+                      onClick={() => { setEditing(e); setMode("edit"); }}
+                      style={{
+                        display: "flex", justifyContent: "space-between", alignItems: "center",
+                        padding: "10px 8px", borderBottom: "1px solid var(--border)",
+                        borderRadius: "var(--radius-sm)", cursor: "pointer",
+                        transition: "background 0.12s",
+                      }}
+                      onMouseEnter={el => el.currentTarget.style.background = "var(--surface-2)"}
+                      onMouseLeave={el => el.currentTarget.style.background = "transparent"}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                        {Boolean(e.isTransfer)
+                          ? <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>↔</span>
+                          : <span style={{
+                              width: 8, height: 8, borderRadius: "50%",
+                              background: e.type === "income" ? "var(--green)" : "var(--red)",
+                              flexShrink: 0, display: "inline-block",
+                            }} />
+                        }
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{
+                            fontSize: 13, color: "var(--text)", fontWeight: 500,
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          }}>
+                            {e.note || e.category}
+                          </p>
+                          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
+                            {e.category}
+                            {Boolean(e.isTransfer) && (
+                              <span style={{ marginLeft: 6, color: "var(--accent)", fontSize: 10 }}>Transfer</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                        <span style={{
+                          fontSize: 14, fontWeight: 700,
+                          color: e.type === "income" ? "var(--green)" : "var(--red)",
+                        }}>
+                          {e.type === "income" ? "+" : "−"}रु{e.amount.toLocaleString()}
+                        </span>
+                        {!e.isTransfer && (
+                          <span style={{ fontSize: 12, color: "var(--text-muted)", opacity: 0.6 }}>✎</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })
+          )}
+        </>)}
+      </div>
+    </div>
+  );
+}
+
 // ─── Account Card ─────────────────────────────────────────────────
 function AccountCard({ account, balance, onClick, isSelected, onEdit, onDelete }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -72,7 +421,7 @@ function AccountCard({ account, balance, onClick, isSelected, onEdit, onDelete }
       </div>
       <p className="account-name">{account.name}</p>
       <p className={`account-balance ${balance >= 0 ? "pos" : "neg"}`}>
-        {balance >= 0 ? "+" : ""}₹{balance.toLocaleString()}
+        {balance >= 0 ? "+" : ""}रु{balance.toLocaleString()}
       </p>
     </div>
   );
@@ -99,7 +448,7 @@ function AddAccountForm({ onSave, onCancel }) {
             {ACCOUNT_GROUPS.find(g => g.key === draft.group)?.label || "Group"}
           </p>
         </div>
-        <span style={{ marginLeft: "auto", fontWeight: 700, fontSize: 16, color: draft.color }}>₹0</span>
+        <span style={{ marginLeft: "auto", fontWeight: 700, fontSize: 16, color: draft.color }}>रु0</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -163,7 +512,7 @@ function EditAccountModal({ account, onSave, onClose }) {
                 {ACCOUNT_GROUPS.find(g => g.key === draft.group)?.label || "Group"}
               </p>
             </div>
-            <span style={{ marginLeft: "auto", fontWeight: 700, fontSize: 16, color: draft.color }}>₹0</span>
+            <span style={{ marginLeft: "auto", fontWeight: 700, fontSize: 16, color: draft.color }}>रु0</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <label className="input-label">Account Name</label>
@@ -273,14 +622,6 @@ function DeleteAccountModal({ account, linkedCount, onConfirmDelete, onReassignA
 }
 
 // ─── Main Account Page ────────────────────────────────────────────
-// Props:
-//   accounts          - array of account objects
-//   accountBalances   - { [accountId]: number }
-//   entries           - all entries (for linked count calculation)
-//   userId            - current user id
-//   onAccountsChange  - (updatedAccounts) => void  (called after any mutation)
-//   onEntriesChange   - (updatedEntries)  => void  (called when entries are reassigned/deleted)
-//   onShowTransfer    - () => void
 export default function Account({
   accounts,
   accountBalances,
@@ -293,6 +634,16 @@ export default function Account({
   const [showAddAcc,      setShowAddAcc]      = useState(false);
   const [editingAccount,  setEditingAccount]  = useState(null);
   const [deletingAccount, setDeletingAccount] = useState(null);
+  const [selectedAcc,     setSelectedAcc]     = useState(null);
+  const [openMenuId,      setOpenMenuId]      = useState(null);
+
+  // Close ⋯ menu on outside click
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handler = () => setOpenMenuId(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [openMenuId]);
 
   const grandTotal = accounts.reduce((s, a) => s + (accountBalances[a.id] || 0), 0);
 
@@ -336,8 +687,17 @@ export default function Account({
   };
 
   return (
-    <div className="page">
+    <div className="page" style={{ padding: "16px", gap: 0 }}>
       {/* Modals */}
+      {selectedAcc && (
+        <AccountDetailModal
+          account={selectedAcc}
+          entries={entries}
+          userId={userId}
+          onClose={() => setSelectedAcc(null)}
+          onEntriesChange={onEntriesChange}
+        />
+      )}
       {editingAccount && (
         <EditAccountModal account={editingAccount} onSave={handleSaveAccount} onClose={() => setEditingAccount(null)} />
       )}
@@ -352,84 +712,131 @@ export default function Account({
         />
       )}
 
-      {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Accounts</h1>
-          <p className="page-sub">Manage your wallets, banks &amp; more</p>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <button className="btn-transfer" onClick={onShowTransfer}>↔ Transfer</button>
-          <button className="btn-add-acc" onClick={() => setShowAddAcc(v => !v)}>+ Add Account</button>
-        </div>
-      </div>
-
-      {/* Net Worth Banner */}
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        background: "var(--surface-2)", borderRadius: "var(--radius-md)",
-        padding: "16px 20px", marginBottom: 20,
-        border: "1px solid var(--border)",
-      }}>
-        <div>
-          <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 2 }}>Total net worth</p>
-          <p style={{ fontSize: 11, color: "var(--text-muted)", opacity: 0.7 }}>across all accounts</p>
-        </div>
-        <span style={{ fontSize: 24, fontWeight: 700, color: grandTotal >= 0 ? "var(--green)" : "var(--red)" }}>
-          {grandTotal >= 0 ? "+" : "−"}₹{Math.abs(grandTotal).toLocaleString()}
-        </span>
-      </div>
-
-      {/* Add Account Form (inline, toggled) */}
       {showAddAcc && (
-        <AddAccountForm onSave={addAccount} onCancel={() => setShowAddAcc(false)} />
+        <div className="modal-overlay" onClick={() => setShowAddAcc(false)} style={{ zIndex: 100 }}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 420, width: "100%" }}>
+            <AddAccountForm onSave={addAccount} onCancel={() => setShowAddAcc(false)} />
+          </div>
+        </div>
       )}
 
-      {/* Account Groups */}
-      <div className="card">
-        {accounts.length === 0 ? (
-          <p className="empty-msg">No accounts yet. Add one to get started.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {ACCOUNT_GROUPS.map(grp => {
-              const grpAccounts = accounts.filter(a => a.group === grp.key);
-              if (grpAccounts.length === 0) return null;
-              const grpTotal = grpAccounts.reduce((s, a) => s + (accountBalances[a.id] || 0), 0);
-              return (
-                <div key={grp.key} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
-                  <div style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    padding: "10px 14px", background: grp.bg + "99", borderBottom: "1px solid var(--border)",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontWeight: 700, fontSize: 13, color: grp.color }}>{grp.label}</span>
-                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                        {grpAccounts.length} account{grpAccounts.length !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: grpTotal >= 0 ? "var(--green)" : "var(--red)" }}>
-                      {grpTotal >= 0 ? "+" : "−"}₹{Math.abs(grpTotal).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="accounts-grid" style={{ padding: "10px" }}>
-                    {grpAccounts.map(acc => (
-                      <AccountCard
-                        key={acc.id}
-                        account={acc}
-                        balance={accountBalances[acc.id] || 0}
-                        isSelected={false}
-                        onClick={() => {}}
-                        onEdit={a => setEditingAccount(a)}
-                        onDelete={a => setDeletingAccount(a)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div>
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: "var(--text)", letterSpacing: -0.5 }}>Accounts</h1>
+          <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</p>
+        </div>
       </div>
+
+      {/* Net Worth — compact stat bar */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 16, background: "var(--surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", overflow: "hidden" }}>
+        <div style={{ flex: 1, padding: "12px 10px", textAlign: "center" }}>
+          <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Net Worth</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: grandTotal >= 0 ? "var(--green)" : "var(--red)", fontFamily: "'Syne', sans-serif" }}>
+            {grandTotal >= 0 ? "+" : "−"}रु{Math.abs(grandTotal).toLocaleString()}
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, paddingRight: 12 }}>
+          <button onClick={onShowTransfer} style={{
+            background: "rgba(99,102,241,0.12)", color: "var(--accent)",
+            border: "1px solid rgba(99,102,241,0.3)", borderRadius: "var(--radius-sm)",
+            padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+          }}>↔ Transfer</button>
+        </div>
+      </div>
+
+      {/* Account Groups — flat list like expense tracker */}
+      {accounts.length === 0 ? (
+        <p style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: "40px 0" }}>No accounts yet. Tap + to add one.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {ACCOUNT_GROUPS.map(grp => {
+            const grpAccounts = accounts.filter(a => a.group === grp.key);
+            if (grpAccounts.length === 0) return null;
+            const grpTotal = grpAccounts.reduce((s, a) => s + (accountBalances[a.id] || 0), 0);
+            return (
+              <div key={grp.key} style={{ marginBottom: 4 }}>
+                {/* Group header — same style as day header in expense tracker */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0 4px", borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: grp.color }}>{grp.label}</span>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{grpAccounts.length} account{grpAccounts.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: grpTotal >= 0 ? "var(--green)" : "var(--red)" }}>
+                    {grpTotal >= 0 ? "+" : "−"}रु{Math.abs(grpTotal).toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Account rows */}
+                {grpAccounts.map(acc => {
+                  const bal = accountBalances[acc.id] || 0;
+                  return (
+                    <div
+                      key={acc.id}
+                      onClick={() => setSelectedAcc(acc)}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "9px 0", borderBottom: "1px solid var(--border)",
+                        cursor: "pointer", transition: "background 0.12s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                        <span style={{ fontSize: 20, flexShrink: 0 }}>{acc.icon}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{acc.name}</p>
+                          <p style={{ fontSize: 11, color: acc.color, marginTop: 1 }}>{grp.label}</p>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: bal >= 0 ? "var(--green)" : "var(--red)" }}>
+                          {bal >= 0 ? "+" : "−"}रु{Math.abs(bal).toLocaleString()}
+                        </span>
+                        {/* ⋯ menu */}
+                        <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setOpenMenuId(v => v === acc.id ? null : acc.id);
+                            }}
+                            style={{ background: "transparent", border: "none", color: "var(--text-muted)", fontSize: 18, cursor: "pointer", padding: "2px 6px", lineHeight: 1 }}
+                          >⋯</button>
+                          {openMenuId === acc.id && (
+                            <div style={{
+                              position: "absolute", right: 0, top: "100%", zIndex: 50,
+                              background: "var(--surface)", border: "1px solid var(--border)",
+                              borderRadius: "var(--radius-md)", overflow: "hidden",
+                              boxShadow: "0 4px 16px rgba(0,0,0,0.3)", minWidth: 120,
+                            }}>
+                              <button onClick={() => { setOpenMenuId(null); setEditingAccount(acc); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 13, color: "var(--text)", background: "transparent", border: "none", cursor: "pointer", borderBottom: "1px solid var(--border)" }}
+                                onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                              >✎ Edit</button>
+                              <button onClick={() => { setOpenMenuId(null); setDeletingAccount(acc); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 13, color: "var(--red)", background: "transparent", border: "none", cursor: "pointer" }}
+                                onMouseEnter={e => e.currentTarget.style.background = "rgba(239,68,68,0.08)"}
+                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                              >✕ Delete</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* FAB — add account */}
+      <style>{`
+        .acc-fab { position: fixed; right: 28px; bottom: 32px; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 26px; font-weight: 300; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(99,102,241,0.4); z-index: 90; transition: transform 0.15s, box-shadow 0.15s; }
+        .acc-fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(99,102,241,0.5); }
+        @media (max-width: 768px) { .acc-fab { bottom: 76px; right: 18px; width: 48px; height: 48px; font-size: 24px; } }
+      `}</style>
+      <button className="acc-fab" onClick={() => setShowAddAcc(true)} title="Add account">+</button>
     </div>
   );
 }
