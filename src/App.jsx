@@ -7,44 +7,60 @@ import Account from "./components/Account";
 import ChartsTab from "./components/ChartsTab";
 import BudgetGoals from "./components/BudgetGoals";
 import Insights from "./components/Insights";
+import Transfermodal from "./components/Transfermodal";
 
 // ── Theme toggle ───────────────────────────────────────────────────
 function useTheme() {
-  const [theme, setTheme] = useState(() => localStorage.getItem("nexus-theme") || "dark");
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("nexus-theme") || "dark",
+  );
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("nexus-theme", theme);
   }, [theme]);
 
-  const toggle = () => setTheme(t => t === "dark" ? "light" : "dark");
+  const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
   return { theme, toggle };
 }
 
 export default function App() {
-  const [user,      setUser]      = useState(() => pb.authStore.model);
+  const [user, setUser] = useState(() => pb.authStore.model);
   const [activeTab, setActiveTab] = useState("expense");
+  const [showTransfer, setShowTransfer] = useState(false); // ← added
   const { theme, toggle: toggleTheme } = useTheme();
 
-  const [entries,  setEntries]  = useState([]);
+  const [entries, setEntries] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [expCats,  setExpCats]  = useState([]);
-  const [incCats,  setIncCats]  = useState([]);
+  const [expCats, setExpCats] = useState([]);
+  const [incCats, setIncCats] = useState([]);
   const [appReady, setAppReady] = useState(false);
 
   const userId = user?.id;
+  const today = new Date().toISOString().split("T")[0];
 
   const loadShared = useCallback(async () => {
     if (!userId) return;
     try {
-      const [entriesRes, accountsRes, expCatsRes, incCatsRes] = await Promise.all([
-        pb.collection("entries").getFullList({ filter: `userId = '${userId}'`, sort: "-date" }),
-        pb.collection("accounts").getFullList({ filter: `userId = '${userId}'` }),
-        pb.collection("expense_categories").getFullList({ filter: `userId = '${userId}'` }).catch(() => []),
-        pb.collection("income_categories").getFullList({ filter: `userId = '${userId}'` }).catch(() => []),
-      ]);
+      const [entriesRes, accountsRes, expCatsRes, incCatsRes] =
+        await Promise.all([
+          pb
+            .collection("entries")
+            .getFullList({ filter: `userId = '${userId}'`, sort: "-date" }),
+          pb
+            .collection("accounts")
+            .getFullList({ filter: `userId = '${userId}'` }),
+          pb
+            .collection("expense_categories")
+            .getFullList({ filter: `userId = '${userId}'` })
+            .catch(() => []),
+          pb
+            .collection("income_categories")
+            .getFullList({ filter: `userId = '${userId}'` })
+            .catch(() => []),
+        ]);
       setEntries(entriesRes);
-      setAccounts(accountsRes.map(a => ({ ...a, group: a.group || "cash" })));
+      setAccounts(accountsRes.map((a) => ({ ...a, group: a.group || "cash" })));
       setExpCats(expCatsRes);
       setIncCats(incCatsRes);
     } catch (err) {
@@ -54,15 +70,16 @@ export default function App() {
     }
   }, [userId]);
 
-  useEffect(() => { loadShared(); }, [loadShared]);
+  useEffect(() => {
+    loadShared();
+  }, [loadShared]);
 
   const accountBalances = useMemo(() => {
     const map = {};
-    accounts.forEach(a => { map[a.id] = 0; });
-
-
-
-    entries.forEach(e => {
+    accounts.forEach((a) => {
+      map[a.id] = 0;
+    });
+    entries.forEach((e) => {
       if (Object.prototype.hasOwnProperty.call(map, e.accountId)) {
         map[e.accountId] += e.type === "income" ? e.amount : -e.amount;
       }
@@ -70,9 +87,7 @@ export default function App() {
     return map;
   }, [entries, accounts]);
 
-  
-
-  const handleLogin  = (u) => setUser(u);
+  const handleLogin = (u) => setUser(u);
   const handleLogout = () => {
     pb.authStore.clear();
     setUser(null);
@@ -88,25 +103,43 @@ export default function App() {
       case "expense":
         return (
           <ExpenseTracker
-            userId={userId} accounts={accounts} entries={entries}
+            userId={userId}
+            accounts={accounts}
+            entries={entries}
             onEntriesChange={setEntries}
           />
         );
       case "accounts":
         return (
           <Account
-            accounts={accounts} accountBalances={accountBalances}
-            entries={entries} userId={userId}
-            onAccountsChange={setAccounts} onEntriesChange={setEntries}
-            onShowTransfer={() => {}}
+            accounts={accounts}
+            accountBalances={accountBalances}
+            entries={entries}
+            userId={userId}
+            onAccountsChange={setAccounts}
+            onEntriesChange={setEntries}
+            onShowTransfer={() => setShowTransfer(true)}
           />
         );
       case "charts":
-        return <ChartsTab userId={userId} entries={entries} accounts={accounts} />;
+        return (
+          <ChartsTab userId={userId} entries={entries} accounts={accounts} />
+        );
       case "budget":
-        return <BudgetGoals userId={userId} entries={entries} expCats={expCats} />;
+        return (
+          <BudgetGoals userId={userId} entries={entries} expCats={expCats} />
+        );
       case "insights":
-        return <Insights userId={userId} entries={entries} expCats={expCats} incCats={incCats} />;
+        return (
+          <Insights
+            userId={userId}
+            entries={entries}
+            accounts={accounts}
+            expCats={expCats}
+            incCats={incCats}
+            onEntriesChange={setEntries}
+          />
+        );
       default:
         return null;
     }
@@ -123,12 +156,35 @@ export default function App() {
         onToggleTheme={toggleTheme}
       />
       <main className="main-content">
-        {appReady ? renderTab() : (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)" }}>
+        {appReady ? (
+          renderTab()
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              color: "var(--text-muted)",
+            }}
+          >
             Loading…
           </div>
         )}
       </main>
+
+      {/* ── Global Transfer Modal ── */}
+      {showTransfer && (
+        <Transfermodal
+          accounts={accounts}
+          userId={userId}
+          today={today}
+          onTransferDone={(newEntries) =>
+            setEntries((prev) => [...newEntries, ...prev])
+          }
+          onClose={() => setShowTransfer(false)}
+        />
+      )}
     </div>
   );
 }
