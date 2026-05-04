@@ -19,13 +19,53 @@ export default function Insights({ userId, entries, expCats = [], incCats = [], 
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef(null);
 
-  // Natural language input state
-  const [nlInput,    setNlInput]    = useState("");
-  const [nlParsed,   setNlParsed]   = useState(null);
-  const [nlLoading,  setNlLoading]  = useState(false);
-  const [nlError,    setNlError]    = useState("");
-  const [nlSaving,   setNlSaving]   = useState(false);
-  const [nlSuccess,  setNlSuccess]  = useState("");
+  // ── Search & Filter state ──────────────────────────────────────
+  const [searchQuery,    setSearchQuery]    = useState("");
+  const [filterType,     setFilterType]     = useState("all");
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterPeriod,   setFilterPeriod]   = useState("all");
+
+  // ── Search results ─────────────────────────────────────────────
+  const searchResults = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const now = new Date();
+
+    return entries.filter(e => {
+      if (e.isTransfer) return false;
+
+      // Type filter
+      if (filterType !== "all" && e.type !== filterType) return false;
+
+      // Category filter
+      if (filterCategory !== "all" && e.category !== filterCategory) return false;
+
+      // Period filter
+      if (filterPeriod !== "all") {
+        const entryDate = new Date(e.date + "T00:00:00");
+        if (filterPeriod === "today") {
+          if (e.date !== today) return false;
+        } else if (filterPeriod === "week") {
+          const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
+          if (entryDate < weekAgo) return false;
+        } else if (filterPeriod === "month") {
+          if (e.date.slice(0, 7) !== thisMonth) return false;
+        } else if (filterPeriod === "last3") {
+          const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+          if (entryDate < threeMonthsAgo) return false;
+        }
+      }
+
+      // Text search
+      if (q) {
+        const inNote     = e.note?.toLowerCase().includes(q);
+        const inCategory = e.category?.toLowerCase().includes(q);
+        const inAmount   = String(e.amount).includes(q);
+        if (!inNote && !inCategory && !inAmount) return false;
+      }
+
+      return true;
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }, [entries, searchQuery, filterType, filterCategory, filterPeriod, today, thisMonth]);
 
   useEffect(() => {
     if (propBills) { setBills(propBills); return; }
@@ -123,39 +163,6 @@ export default function Insights({ userId, entries, expCats = [], incCats = [], 
     return Math.ceil((due - now) / 86400000);
   };
 
-  // ── Natural Language Entry ─────────────────────────────────────
-  const handleNlParse = async () => {
-    if (!nlInput.trim() || nlLoading) return;
-    setNlLoading(true); setNlParsed(null); setNlError(""); setNlSuccess("");
-    try {
-      const parsed = await ai.parseNaturalTransaction(nlInput);
-      if (!parsed || parsed.confidence < 0.5) {
-        setNlError("Couldn't understand that. Try: \"spent 200 on food today\"");
-      } else {
-        setNlParsed(parsed);
-      }
-    } catch {
-      setNlError("Failed to parse. Try again.");
-    } finally {
-      setNlLoading(false);
-    }
-  };
-
-  const handleNlConfirm = async () => {
-    if (!nlParsed) return;
-    setNlSaving(true);
-    try {
-      const result = await ai.executeAction({ action: "add_transaction", ...nlParsed });
-      setNlSuccess(result || "✅ Transaction added!");
-      setNlInput(""); setNlParsed(null);
-      setTimeout(() => setNlSuccess(""), 3000);
-    } catch {
-      setNlError("Failed to save transaction.");
-    } finally {
-      setNlSaving(false);
-    }
-  };
-
   const insightColors  = { warn: "rgba(249,115,22,0.12)", good: "rgba(34,197,94,0.12)", info: "rgba(99,102,241,0.1)" };
   const insightBorders = { warn: "rgba(249,115,22,0.3)",  good: "rgba(34,197,94,0.3)",  info: "rgba(99,102,241,0.25)" };
 
@@ -183,87 +190,112 @@ export default function Insights({ userId, entries, expCats = [], incCats = [], 
         </div>
       </div>
 
-      {/* ── 🗣 Natural Language Entry ── */}
+      {/* ── 🔍 Search & Filter ── */}
       <div className="card">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: "50%",
-            background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0,
-          }}>✨</div>
-          <div>
-            <h2 className="card-title" style={{ marginBottom: 0 }}>Quick Add</h2>
-            <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Type naturally — AI fills the form</p>
-          </div>
+        <h2 className="card-title" style={{ marginBottom: 14 }}>🔍 Search Transactions</h2>
+
+        {/* Search input */}
+        <input
+          className="input"
+          placeholder="Search by note, category, amount..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          style={{ marginBottom: 10 }}
+        />
+
+        {/* Filter row */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <select className="input" style={{ flex: 1, minWidth: 100 }}
+            value={filterType} onChange={e => setFilterType(e.target.value)}>
+            <option value="all">All types</option>
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+          </select>
+
+          <select className="input" style={{ flex: 1, minWidth: 120 }}
+            value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
+            <option value="all">All categories</option>
+            {[...expCats, ...incCats].map(c => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+
+          <select className="input" style={{ flex: 1, minWidth: 100 }}
+            value={filterPeriod} onChange={e => setFilterPeriod(e.target.value)}>
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="week">This week</option>
+            <option value="month">This month</option>
+            <option value="last3">Last 3 months</option>
+          </select>
+
+          {(searchQuery || filterType !== "all" || filterCategory !== "all" || filterPeriod !== "all") && (
+            <button onClick={() => { setSearchQuery(""); setFilterType("all"); setFilterCategory("all"); setFilterPeriod("all"); }}
+              style={{ background: "rgba(239,68,68,0.08)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "var(--radius-sm)", padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+              ✕ Clear
+            </button>
+          )}
         </div>
 
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            className="input"
-            placeholder='e.g. "spent 200 on cigarettes yesterday"'
-            value={nlInput}
-            onChange={e => { setNlInput(e.target.value); setNlParsed(null); setNlError(""); }}
-            onKeyDown={e => e.key === "Enter" && handleNlParse()}
-            style={{ flex: 1 }}
-          />
-          <button
-            onClick={handleNlParse}
-            disabled={nlLoading || !nlInput.trim()}
-            className="btn-primary"
-            style={{ width: "auto", padding: "10px 16px", whiteSpace: "nowrap", opacity: (!nlInput.trim() || nlLoading) ? 0.5 : 1 }}
-          >
-            {nlLoading ? "..." : "Parse"}
-          </button>
-        </div>
-
-        {nlError && (
-          <p style={{ fontSize: 12, color: "var(--red)", marginTop: 8 }}>⚠️ {nlError}</p>
-        )}
-
-        {nlSuccess && (
-          <p style={{ fontSize: 12, color: "var(--green)", marginTop: 8 }}>{nlSuccess}</p>
-        )}
-
-        {nlParsed && nlParsed.confidence >= 0.5 && (
-          <div style={{
-            marginTop: 12, padding: "12px 14px",
-            background: "var(--surface-2)", borderRadius: "var(--radius-md)",
-            border: "1px solid var(--border)",
-          }}>
-            <p style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              AI parsed this as:
+        {/* Results */}
+        {(searchQuery || filterType !== "all" || filterCategory !== "all" || filterPeriod !== "all") && (
+          <>
+            <p style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>
+              {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
+              {searchResults.length > 0 && (
+                <span style={{ marginLeft: 8, color: "var(--accent)" }}>
+                  Total: रु{searchResults.reduce((s, e) => s + e.amount, 0).toLocaleString()}
+                </span>
+              )}
             </p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-              {[
-                { label: "Type",     value: nlParsed.type,     color: nlParsed.type === "income" ? "var(--green)" : "var(--red)" },
-                { label: "Amount",   value: `रु${nlParsed.amount?.toLocaleString()}`, color: "var(--text)" },
-                { label: "Category", value: nlParsed.category, color: "var(--accent)" },
-                { label: "Date",     value: nlParsed.date,     color: "var(--text-muted)" },
-                ...(nlParsed.note ? [{ label: "Note", value: nlParsed.note, color: "var(--text-muted)" }] : []),
-              ].map(s => (
-                <div key={s.label} style={{ background: "var(--surface)", padding: "6px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
-                  <p style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 2 }}>{s.label}</p>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: s.color }}>{s.value}</p>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                className="btn-primary"
-                style={{ flex: 1 }}
-                onClick={handleNlConfirm}
-                disabled={nlSaving}
-              >
-                {nlSaving ? "Saving..." : "✓ Confirm & Save"}
-              </button>
-              <button
-                className="btn-cancel"
-                onClick={() => { setNlParsed(null); setNlInput(""); }}
-              >
-                Edit
-              </button>
-            </div>
-          </div>
+
+            {searchResults.length === 0 ? (
+              <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", padding: "20px 0" }}>
+                No transactions found.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", maxHeight: 360, overflowY: "auto" }}>
+                {searchResults.slice(0, 50).map((e, idx) => (
+                  <div key={`${e.id}-${idx}`} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "9px 0", borderBottom: "1px solid var(--border)",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                      <span style={{
+                        width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                        background: [...expCats, ...incCats].find(c => c.name === e.category)?.color || "#6366f1",
+                      }} />
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 13, color: "var(--text)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {e.note || e.category}
+                        </p>
+                        <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
+                          {e.category} · {new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </p>
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: 13, fontWeight: 700, flexShrink: 0, marginLeft: 8,
+                      color: e.type === "income" ? "var(--green)" : "var(--red)",
+                    }}>
+                      {e.type === "income" ? "+" : "−"}रु{e.amount.toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+                {searchResults.length > 50 && (
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "10px 0" }}>
+                    Showing 50 of {searchResults.length} results
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {!searchQuery && filterType === "all" && filterCategory === "all" && filterPeriod === "all" && (
+          <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "12px 0" }}>
+            Use filters above to search across all your transactions
+          </p>
         )}
       </div>
 
