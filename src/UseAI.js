@@ -407,10 +407,10 @@ Today is ${today}.`,
     suggestCategory,
     clearCatSuggestion,
 
-   
+    // Natural language parser
     parseNaturalTransaction,
 
-    
+    // Execute actions directly
     executeAction,
   };
 }

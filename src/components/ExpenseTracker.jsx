@@ -41,8 +41,8 @@ function CategoryHistoryModal({ category, type, entries, accounts, getCatColor, 
     return months;
   }, [catEntries]);
 
-  const maxVal    = Math.max(...monthData.map(m => m.total), 1);
-  const hasData   = monthData.some(m => m.total > 0);
+  const maxVal  = Math.max(...monthData.map(m => m.total), 1);
+  const hasData = monthData.some(m => m.total > 0);
   const peakMonth = monthData.reduce((a, b) => b.total > a.total ? b : a, monthData[0]);
 
   useEffect(() => {
@@ -226,12 +226,12 @@ function LoadingScreen() {
   );
 }
 
-export default function ExpenseTracker({ userId, accounts, entries, onEntriesChange }) {
+export default function ExpenseTracker({ userId, accounts, entries, onEntriesChange, ai }) {
   const today = new Date().toISOString().split("T")[0];
   const [loading,      setLoading]      = useState(true);
   const [expCats,      setExpCats]      = useState([]);
   const [incCats,      setIncCats]      = useState([]);
-   const [showForm,     setShowForm]     = useState(false);
+  const [showForm,     setShowForm]     = useState(false);
   const [form, setForm] = useState({ type: "expense", amount: "", category: "", note: "", date: today, accountId: accounts?.[0]?.id || "" });
   const [filterDate,   setFilterDate]   = useState(today);
   const [confirmId,    setConfirmId]    = useState(null);
@@ -242,6 +242,9 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
   const [catHistory,   setCatHistory]   = useState(null);
   const hasLoaded = useRef(false);
   const { suggestions, showSuggestions, setShowSuggestions } = useNoteSuggestions(entries, form);
+
+  // ── AI auto-categorization state ──────────────────────────────
+  const [showAiCatBadge, setShowAiCatBadge] = useState(false);
 
   const loadData = useCallback(async () => {
     if (hasLoaded.current) return;
@@ -261,6 +264,30 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { if (!form.accountId && accounts?.length) setForm(f => ({ ...f, accountId: accounts[0].id })); }, [accounts]);
 
+  // ── AI auto-categorization: trigger on note change ────────────
+  useEffect(() => {
+    if (!ai || !form.note || form.note.trim().length < 3) {
+      setShowAiCatBadge(false);
+      return;
+    }
+    ai.suggestCategory(form.note, form.type);
+    setShowAiCatBadge(false);
+  }, [form.note, form.type]);
+
+  // When AI suggestion arrives, show badge
+  useEffect(() => {
+    if (ai?.catSuggestion && showForm) {
+      setShowAiCatBadge(true);
+    }
+  }, [ai?.catSuggestion, showForm]);
+
+  const applyAiCategory = () => {
+    if (!ai?.catSuggestion) return;
+    setForm(f => ({ ...f, category: ai.catSuggestion }));
+    setShowAiCatBadge(false);
+    ai.clearCatSuggestion();
+  };
+
   const currentCats = form.type === "expense" ? expCats : incCats;
   const getCatColor = (category, type) => (type === "expense" ? expCats : incCats).find(c => c.name === category)?.color || "#94a3b8";
 
@@ -279,10 +306,15 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
     if (type === "expense") setExpCats(prev => prev.filter(c => c.name !== name)); else setIncCats(prev => prev.filter(c => c.name !== name));
   };
 
-  const handleTypeChange = t => { const cats = t === "expense" ? expCats : incCats; setForm(f => ({ ...f, type: t, category: cats[0]?.name || "" })); };
+  const handleTypeChange = t => {
+    const cats = t === "expense" ? expCats : incCats;
+    setForm(f => ({ ...f, type: t, category: cats[0]?.name || "" }));
+  };
 
   const closeForm = () => {
     setShowForm(false); setEditEntry(null);
+    setShowAiCatBadge(false);
+    ai?.clearCatSuggestion?.();
     setForm({ type: "expense", amount: "", category: expCats[0]?.name || "", note: "", date: today, accountId: accounts?.[0]?.id || "" });
   };
 
@@ -348,7 +380,6 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
 
   return (
     <div className="page" style={{ padding: "16px", gap: 0 }}>
-
       {showTransfer && <Transfermodal accounts={accounts} userId={userId} today={today} onTransferDone={newEntries => onEntriesChange([...newEntries, ...entries])} onClose={() => setShowTransfer(false)} />}
       {catHistory && <CategoryHistoryModal category={catHistory.category} type={catHistory.type} entries={entries} accounts={accounts} getCatColor={getCatColor} onClose={() => setCatHistory(null)} />}
 
@@ -369,16 +400,45 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
                 ))}
                 <button onClick={() => { closeForm(); setShowTransfer(true); }} className="toggle-btn" style={{ background: "rgba(99,102,241,0.12)", color: "var(--accent)", borderColor: "rgba(99,102,241,0.3)" }}>↔ Transfer</button>
               </div>
+
               <input type="number" placeholder="Amount" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} className="input" autoFocus />
-              <div className="cat-select-row">
-                <select key={form.type} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="input" style={{ flex: 1, minWidth: 0 }}>
-                  {currentCats.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
-                </select>
-                <button className="btn-manage-cats" onClick={() => setCatModal(form.type)}>⚙</button>
+
+              {/* Category row with AI suggestion badge */}
+              <div style={{ position: "relative" }}>
+                <div className="cat-select-row">
+                  <select key={form.type} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="input" style={{ flex: 1, minWidth: 0 }}>
+                    {currentCats.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                  <button className="btn-manage-cats" onClick={() => setCatModal(form.type)}>⚙</button>
+                </div>
+                {/* AI category suggestion badge */}
+                {showAiCatBadge && ai?.catSuggestion && ai.catSuggestion !== form.category && (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 8, marginTop: 6,
+                    padding: "7px 10px", borderRadius: "var(--radius-sm)",
+                    background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)",
+                  }}>
+                    <span style={{ fontSize: 12 }}>✨</span>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)", flex: 1 }}>
+                      AI suggests: <strong style={{ color: "var(--accent)" }}>{ai.catSuggestion}</strong>
+                    </span>
+                    {ai.catLoading
+                      ? <span style={{ fontSize: 11, color: "var(--text-muted)" }}>...</span>
+                      : <button onClick={applyAiCategory} style={{
+                          background: "var(--accent)", color: "#fff", border: "none",
+                          borderRadius: "var(--radius-sm)", padding: "3px 10px",
+                          fontSize: 11, fontWeight: 600, cursor: "pointer",
+                        }}>Apply</button>
+                    }
+                    <button onClick={() => setShowAiCatBadge(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 13 }}>✕</button>
+                  </div>
+                )}
               </div>
+
               <select value={form.accountId} onChange={e => setForm({ ...form, accountId: e.target.value })} className="input">
                 {(accounts || []).map(a => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
               </select>
+
               <div style={{ position: "relative" }}>
                 <input type="text" placeholder="Note (optional)" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} onFocus={() => setShowSuggestions(suggestions.length > 0)} onBlur={() => setTimeout(() => setShowSuggestions(false), 150)} className="input" />
                 {showSuggestions && (
@@ -389,7 +449,9 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
                   </div>
                 )}
               </div>
+
               <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="input" />
+
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={addEntry} className="btn-primary" style={{ flex: 1 }} disabled={saving}>{saving ? "Saving..." : editEntry ? "Save Changes" : "Add"}</button>
                 {editEntry && <button onClick={closeForm} className="btn-cancel">Cancel</button>}
@@ -412,12 +474,12 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
         </div>
       </div>
 
-      {/* ── Stats — 3 compact inline numbers ── */}
+      {/* ── Stats ── */}
       <div style={{ display: "flex", gap: 0, marginBottom: 16, background: "var(--surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", overflow: "hidden" }}>
         {[
-          { label: "Income", value: `रु${totalIncome.toLocaleString()}`, color: "var(--green)" },
-          { label: "Expense", value: `रु${totalExpense.toLocaleString()}`, color: "var(--red)" },
-          { label: "Balance", value: `रु${Math.abs(balance).toLocaleString()}`, color: balance >= 0 ? "var(--green)" : "var(--red)" },
+          { label: "Income",  value: `रु${totalIncome.toLocaleString()}`,          color: "var(--green)" },
+          { label: "Expense", value: `रु${totalExpense.toLocaleString()}`,          color: "var(--red)" },
+          { label: "Balance", value: `रु${Math.abs(balance).toLocaleString()}`,     color: balance >= 0 ? "var(--green)" : "var(--red)" },
         ].map((s, i) => (
           <div key={s.label} style={{ flex: 1, padding: "12px 10px", textAlign: "center", borderRight: i < 2 ? "1px solid var(--border)" : "none" }}>
             <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{s.label}</p>
@@ -449,8 +511,7 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
             const dayExpense = dayEntries.filter(e => e.type === "expense" && !Boolean(e.isTransfer) && !e._isPair).reduce((s, e) => s + e.amount, 0);
             return (
               <div key={date} style={{ marginBottom: 4 }}>
-                {/* Day header */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0 4px", borderBottom: "1px solid var(--border)", background:"var(--surface-2"}}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0 4px", borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                     <span style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontFamily: "'Syne', sans-serif", lineHeight: 1 }}>{dayNum}</span>
                     <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{dayName}</span>
@@ -461,10 +522,8 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
                   </div>
                 </div>
 
-                {/* Entries */}
-                {dayEntries.map((e,idx) => {
+                {dayEntries.map((e, idx) => {
                   const acc = (accounts || []).find(a => a.id === e.accountId);
-
                   if (e._isPair) {
                     const fromAcc = (accounts || []).find(a => a.id === e.accountId);
                     const toAcc   = (accounts || []).find(a => a.id === e._transferTo?.accountId);
@@ -473,12 +532,8 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>↔</span>
                           <div>
-                            <p style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>
-                              {fromAcc?.name} → {toAcc?.name}
-                            </p>
-                            <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
-                              Transfer{e.note ? ` · ${e.note.replace(`Transfer to ${toAcc?.name}: `, "").replace(`Transfer to ${toAcc?.name}`, "")}` : ""}
-                            </p>
+                            <p style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>{fromAcc?.name} → {toAcc?.name}</p>
+                            <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>Transfer{e.note ? ` · ${e.note.replace(`Transfer to ${toAcc?.name}: `, "").replace(`Transfer to ${toAcc?.name}`, "")}` : ""}</p>
                           </div>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -488,7 +543,6 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
                       </div>
                     );
                   }
-
                   return (
                     <div key={e.id} onClick={() => startEdit(e)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid var(--border)", cursor: "pointer" }}
                       onMouseEnter={el => el.currentTarget.style.background = "var(--surface-2)"}
