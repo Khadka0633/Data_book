@@ -1122,83 +1122,62 @@ export default function ChartsTab({
         />
       )}
 
-      {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Charts</h1>
-          <p className="page-sub">Visual breakdown of your finances</p>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            onClick={() => setShowLifetime((v) => !v)}
-            style={{
-              background: showLifetime
-                ? "rgba(99,102,241,0.2)"
-                : "var(--surface-2)",
-              color: showLifetime ? "var(--accent)" : "var(--text-muted)",
-              border: showLifetime
-                ? "1px solid rgba(99,102,241,0.4)"
-                : "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)",
-              padding: "8px 14px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {showLifetime ? "📊 Lifetime" : "📊 Lifetime"}
-          </button>
-          <input
-            type="month"
-            value={chartMonth}
-            onChange={(e) => {
-              setChartMonth(e.target.value);
-              setShowLifetime(false);
-            }}
-            className="input compact"
-            style={{ width: "auto", opacity: showLifetime ? 0.4 : 1 }}
-            disabled={showLifetime}
-          />
-          <button
-            className="btn-transfer"
-            onClick={() => exportCSV(entries, accounts, chartMonth)}
-          >
-            ↓ Export CSV
-          </button>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <input
-            type="month"
-            value={chartMonth}
-            onChange={(e) => setChartMonth(e.target.value)}
-            className="input compact"
-            style={{ width: "auto" }}
-          />
-          <button
-            className="btn-transfer"
-            onClick={() => exportCSV(entries, accounts, chartMonth)}
-            title="Download this month as CSV"
-          >
-            ↓ Export CSV
-          </button>
-        </div>
-      </div>
-
+       {/* Header */}
+<div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+  <div>
+    <h1 className="page-title">Charts</h1>
+    <p className="page-sub">Visual breakdown of your finances</p>
+  </div>
+  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+    <button
+      onClick={() => setShowLifetime((v) => !v)}
+      style={{
+        background: showLifetime ? "rgba(99,102,241,0.2)" : "var(--surface-2)",
+        color: showLifetime ? "var(--accent)" : "var(--text-muted)",
+        border: showLifetime ? "1px solid rgba(99,102,241,0.4)" : "1px solid var(--border)",
+        borderRadius: "var(--radius-sm)",
+        padding: "8px 14px",
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      📊 Lifetime
+    </button>
+    <input
+      type="month"
+      value={chartMonth}
+      onChange={(e) => { setChartMonth(e.target.value); setShowLifetime(false); }}
+      style={{ width: 130, 
+    opacity: showLifetime ? 0.4 : 1,
+    padding: "8px 14px",
+    background: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-sm)",
+    color: "var(--text)",
+    fontSize: 13,
+    fontWeight: 600,
+    outline: "none", }}
+      disabled={showLifetime}
+    />
+    <button
+      className="btn-transfer"
+      onClick={() => exportCSV(entries, accounts, chartMonth)}
+      style={{ background: "rgba(99,102,241,0.1)",
+    color: "var(--accent)",
+    border: "1px solid rgba(99,102,241,0.3)",
+    borderRadius: "var(--radius-sm)",
+    padding: "8px 14px",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    whiteSpace: "nowrap", }}
+    >
+      ↓ Export CSV
+    </button>
+  </div>
+</div>
       {/* Monthly summary */}
       <div className="stat-grid">
         <div className="stat-card income-card">
