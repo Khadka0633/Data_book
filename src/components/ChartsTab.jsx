@@ -337,6 +337,18 @@ function NetWorthChart({ entries, accounts }) {
   const canvasRef = useRef(null);
   const chartRef  = useRef(null);
 
+
+
+
+
+
+
+
+
+
+
+  
+
   const monthData = useMemo(() => {
     const now = new Date();
     const months = Array.from({ length: 12 }, (_, i) => {
@@ -491,6 +503,7 @@ export default function ChartsTab({ userId, entries: propEntries, accounts: prop
   const [accounts,   setAccounts]   = useState(propAccounts || []);
   const [loading,    setLoading]    = useState(!propEntries);
   const [modal,      setModal]      = useState(null);
+  const [showLifetime, setShowLifetime] = useState(false);
 
   // Use prop entries if provided (lifted state), otherwise load own
   useEffect(() => {
@@ -520,9 +533,9 @@ export default function ChartsTab({ userId, entries: propEntries, accounts: prop
     }).finally(() => setLoading(false));
   }, [userId]);
 
-  const monthlyIncome  = entries.filter(e => e.type === "income"  && !e.isTransfer && e.date.slice(0, 7) === chartMonth).reduce((s, e) => s + e.amount, 0);
-  const monthlyExpense = entries.filter(e => e.type === "expense" && !e.isTransfer && e.date.slice(0, 7) === chartMonth).reduce((s, e) => s + e.amount, 0);
-  const monthlySavings = monthlyIncome - monthlyExpense;
+ const monthlyIncome  = entries.filter(e => e.type === "income"  && !e.isTransfer && (showLifetime || e.date.slice(0, 7) === chartMonth)).reduce((s, e) => s + e.amount, 0);
+const monthlyExpense = entries.filter(e => e.type === "expense" && !e.isTransfer && (showLifetime || e.date.slice(0, 7) === chartMonth)).reduce((s, e) => s + e.amount, 0);
+const monthlySavings = monthlyIncome - monthlyExpense;
 
   const expensePieData = useMemo(() => {
     const map = {};
@@ -567,6 +580,35 @@ export default function ChartsTab({ userId, entries: propEntries, accounts: prop
           <h1 className="page-title">Charts</h1>
           <p className="page-sub">Visual breakdown of your finances</p>
         </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+  <button
+    onClick={() => setShowLifetime(v => !v)}
+    style={{
+      background: showLifetime ? "rgba(99,102,241,0.2)" : "var(--surface-2)",
+      color: showLifetime ? "var(--accent)" : "var(--text-muted)",
+      border: showLifetime ? "1px solid rgba(99,102,241,0.4)" : "1px solid var(--border)",
+      borderRadius: "var(--radius-sm)",
+      padding: "8px 14px",
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+    }}
+  >
+    {showLifetime ? "📊 Lifetime" : "📊 Lifetime"}
+  </button>
+  <input
+    type="month"
+    value={chartMonth}
+    onChange={e => { setChartMonth(e.target.value); setShowLifetime(false); }}
+    className="input compact"
+    style={{ width: "auto", opacity: showLifetime ? 0.4 : 1 }}
+    disabled={showLifetime}
+  />
+  <button className="btn-transfer" onClick={() => exportCSV(entries, accounts, chartMonth)}>
+    ↓ Export CSV
+  </button>
+</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input type="month" value={chartMonth}
             onChange={e => setChartMonth(e.target.value)}

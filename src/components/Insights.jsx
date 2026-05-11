@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import pb from "../pb";
+import MultiCurrencyWidget from "./MultiCurrencyWidget";
 
 export default function Insights({ userId, entries, expCats = [], incCats = [], bills: propBills, onBillsChange, ai }) {
   const today     = new Date().toISOString().split("T")[0];
@@ -11,10 +12,7 @@ export default function Insights({ userId, entries, expCats = [], incCats = [], 
   })();
 
   const [bills,   setBills]   = useState(propBills || []);
-  const [loading, setLoading] = useState(!propBills);
-  const [bForm,   setBForm]   = useState({ name: "", amount: "", dueDay: "1" });
-  const [bError,  setBError]  = useState("");
-  const [bSaving, setBSaving] = useState(false);
+  const [loading, setLoading] = useState(!propBills)
 
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef(null);
@@ -136,32 +134,10 @@ export default function Insights({ userId, entries, expCats = [], incCats = [], 
     return list.slice(0, 6);
   }, [entries, thisMonth, lastMonth]);
 
-  // ── Bills ──────────────────────────────────────────────────────
-  const addBill = async () => {
-    if (!bForm.name.trim()) return setBError("Enter a name.");
-    if (!bForm.amount || +bForm.amount <= 0) return setBError("Enter a valid amount.");
-    setBSaving(true);
-    try {
-      const created = await pb.collection("bills").create({ userId, name: bForm.name.trim(), amount: +bForm.amount, dueDay: +bForm.dueDay });
-      setBills(prev => [...prev, created]);
-      onBillsChange?.(prev => [...prev, created]);
-      setBForm({ name: "", amount: "", dueDay: "1" }); setBError("");
-    } catch { setBError("Failed to save."); }
-    finally { setBSaving(false); }
-  };
+ 
 
-  const deleteBill = async id => {
-    await pb.collection("bills").delete(id);
-    setBills(prev => prev.filter(b => b.id !== id));
-    onBillsChange?.(prev => prev.filter(b => b.id !== id));
-  };
 
-  const daysUntilDue = dueDay => {
-    const now = new Date();
-    const due = new Date(now.getFullYear(), now.getMonth(), dueDay);
-    if (due < now) due.setMonth(due.getMonth() + 1);
-    return Math.ceil((due - now) / 86400000);
-  };
+
 
   const insightColors  = { warn: "rgba(249,115,22,0.12)", good: "rgba(34,197,94,0.12)", info: "rgba(99,102,241,0.1)" };
   const insightBorders = { warn: "rgba(249,115,22,0.3)",  good: "rgba(34,197,94,0.3)",  info: "rgba(99,102,241,0.25)" };
@@ -182,6 +158,7 @@ export default function Insights({ userId, entries, expCats = [], incCats = [], 
   );
 
   return (
+    
     <div className="page">
       <div className="page-header">
         <div>
@@ -292,12 +269,16 @@ export default function Insights({ userId, entries, expCats = [], incCats = [], 
           </>
         )}
 
+        
+
         {!searchQuery && filterType === "all" && filterCategory === "all" && filterPeriod === "all" && (
           <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "12px 0" }}>
             Use filters above to search across all your transactions
           </p>
         )}
       </div>
+
+      <MultiCurrencyWidget />
 
       {/* ── Streak ── */}
       <div className="card">
@@ -347,55 +328,8 @@ export default function Insights({ userId, entries, expCats = [], incCats = [], 
         )}
       </div>
 
-      {/* ── Bill Reminders ── */}
-      <div className="card">
-        <h2 className="card-title" style={{ marginBottom: 14 }}>📅 Bill Reminders</h2>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          <input className="input" placeholder="Bill name" style={{ flex: 2, minWidth: 120 }}
-            value={bForm.name} onChange={e => { setBForm(f => ({ ...f, name: e.target.value })); setBError(""); }} />
-          <input className="input" type="number" placeholder="Amount (रु)" style={{ flex: 1, minWidth: 90 }}
-            value={bForm.amount} onChange={e => setBForm(f => ({ ...f, amount: e.target.value }))} />
-          <select className="input" style={{ flex: 1, minWidth: 80 }}
-            value={bForm.dueDay} onChange={e => setBForm(f => ({ ...f, dueDay: e.target.value }))}>
-            {Array.from({ length: 28 }, (_, i) => i + 1).map(d => <option key={d} value={d}>Day {d}</option>)}
-          </select>
-          <button className="btn-primary" onClick={addBill} disabled={bSaving} style={{ whiteSpace: "nowrap" }}>
-            {bSaving ? "..." : "+ Add"}
-          </button>
-        </div>
-        {bError && <p style={{ color: "var(--red)", fontSize: 12, marginBottom: 10 }}>{bError}</p>}
-        {bills.length === 0 ? (
-          <p className="empty-msg">No bills tracked. Add recurring bills above.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {bills.slice().sort((a, b) => daysUntilDue(a.dueDay) - daysUntilDue(b.dueDay)).map(bill => {
-              const days = daysUntilDue(bill.dueDay);
-              const urgent = days <= 3, soon = days <= 7;
-              return (
-                <div key={bill.id} style={{
-                  display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: "var(--radius-md)",
-                  background: urgent ? "rgba(239,68,68,0.08)" : soon ? "rgba(249,115,22,0.08)" : "var(--surface-2)",
-                  border: urgent ? "1px solid rgba(239,68,68,0.25)" : soon ? "1px solid rgba(249,115,22,0.25)" : "1px solid var(--border)",
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{bill.name}</p>
-                    <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Due on day {bill.dueDay} each month</p>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>रु{bill.amount.toLocaleString()}</p>
-                    <p style={{ fontSize: 11, fontWeight: 600, marginTop: 2, color: urgent ? "var(--red)" : soon ? "#f97316" : "var(--text-muted)" }}>
-                      {days === 0 ? "Due today!" : days === 1 ? "Due tomorrow" : `${days} days`}
-                    </p>
-                  </div>
-                  <button onClick={() => deleteBill(bill.id)}
-                    style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 14, flexShrink: 0 }}>✕</button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
+      
+     
       {/* ── Unified AI Chat ── */}
       <div className="card">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -474,21 +408,7 @@ export default function Insights({ userId, entries, expCats = [], incCats = [], 
           <div ref={chatEndRef} />
         </div>
 
-        {/* Quick prompts */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-          {quickPrompts.map((p, i) => (
-            <button key={i} onClick={() => setChatInput(p)}
-              style={{
-                fontSize: 11, padding: "5px 10px", borderRadius: 99,
-                background: "var(--surface-2)", border: "1px solid var(--border)",
-                color: "var(--text-muted)", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-muted)"; }}
-            >{p}</button>
-          ))}
-        </div>
-
+      
         {/* Input */}
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input
@@ -516,7 +436,7 @@ export default function Insights({ userId, entries, expCats = [], incCats = [], 
         </div>
 
         <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, textAlign: "center" }}>
-          Nexus AI knows your transactions, budgets, goals & bills · Chat history saved
+          Nexus AI knows your transactions, budgets and goals· Chat history saved
         </p>
       </div>
 

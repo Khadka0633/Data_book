@@ -31,7 +31,7 @@ function parseJSON(text) {
 }
 
 // ── Build full financial context for AI ────────────────────────────
-function buildFinancialContext({ entries, accounts, budgets, savingsGoals, bills, expCats, incCats }) {
+function buildFinancialContext({ entries, accounts, budgets, savingsGoals,  expCats, incCats }) {
   const today     = new Date().toISOString().split("T")[0];
   const thisMonth = today.slice(0, 7);
   const lastMonth = (() => {
@@ -73,13 +73,6 @@ function buildFinancialContext({ entries, accounts, budgets, savingsGoals, bills
     `${g.name}: रु${g.current} of रु${g.target} (${Math.round((g.current / g.target) * 100)}%)`
   ).join("\n");
 
-  const billsStatus = bills.map(b => {
-    const now = new Date();
-    const due = new Date(now.getFullYear(), now.getMonth(), b.dueDay);
-    if (due < now) due.setMonth(due.getMonth() + 1);
-    const days = Math.ceil((due - now) / 86400000);
-    return `${b.name} रु${b.amount} — due in ${days} days`;
-  }).join("\n");
 
   const accountsSummary = accounts.map(a => {
     const bal = entries
@@ -112,8 +105,7 @@ ${budgetStatus || "No budgets set"}
 SAVINGS GOALS:
 ${goalsStatus || "No savings goals"}
 
-BILLS:
-${billsStatus || "No bills"}
+
 
 EXPENSE CATEGORIES: ${expCats.map(c => c.name).join(", ")}
 INCOME CATEGORIES: ${incCats.map(c => c.name).join(", ")}
@@ -144,7 +136,6 @@ export default function useAI({
   incCats,
   budgets,
   savingsGoals,
-  bills,
   onEntriesChange,
   onBudgetsChange,
   onSavingsGoalsChange,
@@ -199,16 +190,7 @@ export default function useAI({
       }
     });
 
-    // Bill alerts
-    bills.forEach(b => {
-      const now = new Date();
-      const due = new Date(now.getFullYear(), now.getMonth(), b.dueDay);
-      if (due < now) due.setMonth(due.getMonth() + 1);
-      const days = Math.ceil((due - now) / 86400000);
-      if (days <= 3) {
-        newAlerts.push({ type: days === 0 ? "danger" : "warn", icon: "📅", text: `${b.name} रु${b.amount.toLocaleString()} ${days === 0 ? "due today!" : `due in ${days} day${days !== 1 ? "s" : ""}!`}` });
-      }
-    });
+   
 
     // Spending spike
     const lastMonth = (() => {
@@ -232,7 +214,7 @@ export default function useAI({
     });
 
     setAlerts(newAlerts.slice(0, 3));
-  }, [entries, budgets, bills, savingsGoals, thisMonth]);
+  }, [entries, budgets,  savingsGoals, thisMonth]);
 
   // ── Auto-categorize note ───────────────────────────────────────
   const suggestCategory = useCallback((note, type = "expense") => {
@@ -303,13 +285,7 @@ Which category fits best? Respond ONLY with the category name, nothing else. If 
           return `✅ Created savings goal: "${actionObj.name}" — रु${actionObj.target} target`;
         }
 
-        case "add_bill": {
-          const created = await pb.collection("bills").create({
-            userId, name: actionObj.name, amount: actionObj.amount, dueDay: actionObj.dueDay,
-          });
-          onBillsChange(prev => [...prev, created]);
-          return `✅ Added bill reminder: ${actionObj.name} — रु${actionObj.amount} on day ${actionObj.dueDay}`;
-        }
+      
 
         default:
           return null;
@@ -329,7 +305,7 @@ Which category fits best? Respond ONLY with the category name, nothing else. If 
     setChatLoading(true);
 
     try {
-      const context = buildFinancialContext({ entries, accounts, budgets, savingsGoals, bills, expCats, incCats });
+      const context = buildFinancialContext({ entries, accounts, budgets, savingsGoals,  expCats, incCats });
       const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
 
       const reply = await callGroq([
@@ -364,11 +340,11 @@ Which category fits best? Respond ONLY with the category name, nothing else. If 
     } finally {
       setChatLoading(false);
     }
-  }, [messages, chatLoading, entries, accounts, budgets, savingsGoals, bills, expCats, incCats, executeAction]);
+  }, [messages, chatLoading, entries, accounts, budgets, savingsGoals, expCats, incCats, executeAction]);
 
   // ── Natural language transaction parser ────────────────────────
   const parseNaturalTransaction = useCallback(async (text) => {
-    const context = buildFinancialContext({ entries, accounts, budgets, savingsGoals, bills, expCats, incCats });
+    const context = buildFinancialContext({ entries, accounts, budgets, savingsGoals,  expCats, incCats });
     const reply = await callGroq([
       { role: "system", content: context },
       {
@@ -380,7 +356,7 @@ Today is ${today}.`,
       },
     ], { temperature: 0.1, max_tokens: 200 });
     return parseJSON(reply);
-  }, [entries, accounts, budgets, savingsGoals, bills, expCats, incCats, today]);
+  }, [entries, accounts, budgets, savingsGoals,  expCats, incCats, today]);
 
   const clearChat = () => {
     const initial = [{

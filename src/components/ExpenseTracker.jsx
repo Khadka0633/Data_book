@@ -317,11 +317,12 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
     ai?.clearCatSuggestion?.();
     setForm({ type: "expense", amount: "", category: expCats[0]?.name || "", note: "", date: today, accountId: accounts?.[0]?.id || "" });
   };
-
-  const totalIncome  = entries.filter(e => e.type === "income"  && !Boolean(e.isTransfer)).reduce((s, e) => s + e.amount, 0);
-  const totalExpense = entries.filter(e => e.type === "expense" && !Boolean(e.isTransfer)).reduce((s, e) => s + e.amount, 0);
-  const balance      = totalIncome - totalExpense;
   const ledgerMonth  = filterDate.slice(0, 7);
+
+  const totalIncome  = entries.filter(e => e.type === "income"  && !Boolean(e.isTransfer) && e.date.slice(0, 7) === ledgerMonth).reduce((s, e) => s + e.amount, 0);
+const totalExpense = entries.filter(e => e.type === "expense" && !Boolean(e.isTransfer) && e.date.slice(0, 7) === ledgerMonth).reduce((s, e) => s + e.amount, 0);
+const balance      = totalIncome - totalExpense;
+  
 
   const changeMonth = dir => { const d = new Date(filterDate + "T00:00:00"); d.setMonth(d.getMonth() + dir); setFilterDate(d.toISOString().split("T")[0]); };
   const monthLabel = new Date(filterDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -513,8 +514,9 @@ export default function ExpenseTracker({ userId, accounts, entries, onEntriesCha
               <div key={date} style={{ marginBottom: 4 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0 4px", borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                    <span style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontFamily: "'Syne', sans-serif", lineHeight: 1 }}>{dayNum}</span>
-                    <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{dayName}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+  {dayName}, {d.toLocaleDateString("en-US", {  day: "numeric" })}
+</span>
                   </div>
                   <div style={{ display: "flex", gap: 10, fontSize: 12 }}>
                     {dayIncome  > 0 && <span style={{ color: "var(--green)", fontWeight: 600 }}>+रु{dayIncome.toLocaleString()}</span>}
