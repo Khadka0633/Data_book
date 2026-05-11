@@ -25,10 +25,13 @@ function PieChart({ data, label = "TOTAL", onSliceClick }) {
     );
 
   let cumAngle = -90;
-  const radius = 90, cx = 160, cy = 160;
+  const radius = 90,
+    cx = 160,
+    cy = 160;
 
   const slices = data
     .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value)
     .map((d) => {
       const pct = d.value / total;
       const angle = pct * 360;
@@ -56,15 +59,40 @@ function PieChart({ data, label = "TOTAL", onSliceClick }) {
       const textAnchor = textX > cx ? "start" : "end";
 
       cumAngle += angle;
-      return { ...d, path, pct, midAngle, lx1, ly1, lx2, ly2, lx3, ly3, textX, textY, textAnchor };
+      return {
+        ...d,
+        path,
+        pct,
+        midAngle,
+        lx1,
+        ly1,
+        lx2,
+        ly2,
+        lx3,
+        ly3,
+        textX,
+        textY,
+        textAnchor,
+      };
     });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 20,
+      }}
+    >
       {/* Pie SVG */}
       <svg viewBox="0 0 320 320" style={{ width: "100%", maxWidth: 320 }}>
         {slices.map((s, i) => (
-          <g key={i} onClick={() => onSliceClick && onSliceClick(s.label)} style={{ cursor: "pointer" }}>
+          <g
+            key={i}
+            onClick={() => onSliceClick && onSliceClick(s.label)}
+            style={{ cursor: "pointer" }}
+          >
             <path
               d={s.path}
               fill={s.color}
@@ -72,14 +100,18 @@ function PieChart({ data, label = "TOTAL", onSliceClick }) {
               stroke="var(--surface)"
               strokeWidth="1.5"
             >
-              <title>{s.label}: रु{s.value.toFixed(0)} ({(s.pct * 100).toFixed(1)}%)</title>
+              <title>
+                {s.label}: रु{s.value.toFixed(0)} ({(s.pct * 100).toFixed(1)}%)
+              </title>
             </path>
             {/* Only show label if slice is big enough */}
             {s.pct > 0.04 && (
               <>
                 <line
-                  x1={s.lx1} y1={s.ly1}
-                  x2={s.lx3} y2={s.ly3}
+                  x1={s.lx1}
+                  y1={s.ly1}
+                  x2={s.lx3}
+                  y2={s.ly3}
                   stroke={s.color}
                   strokeWidth="1"
                   opacity="0.7"
@@ -111,7 +143,14 @@ function PieChart({ data, label = "TOTAL", onSliceClick }) {
       </svg>
 
       {/* Category list with badge */}
-      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 2 }}>
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
         {slices.map((s, i) => (
           <div
             key={i}
@@ -126,45 +165,55 @@ function PieChart({ data, label = "TOTAL", onSliceClick }) {
               borderRadius: "var(--radius-sm)",
               transition: "background 0.12s",
             }}
-            onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"}
-            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = "var(--surface-2)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
           >
             {/* Percentage badge */}
-            <div style={{
-              minWidth: 42,
-              height: 28,
-              borderRadius: 6,
-              background: s.color,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}>
+            <div
+              style={{
+                minWidth: 42,
+                height: 28,
+                borderRadius: 6,
+                background: s.color,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
               <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>
                 {Math.round(s.pct * 100)}%
               </span>
             </div>
 
             {/* Category name */}
-            <span style={{
-              flex: 1,
-              fontSize: 14,
-              fontWeight: 500,
-              color: "var(--text)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}>
+            <span
+              style={{
+                flex: 1,
+                fontSize: 14,
+                fontWeight: 500,
+                color: "var(--text)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {s.label}
             </span>
 
             {/* Amount */}
-            <span style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: "var(--text)",
-              flexShrink: 0,
-            }}>
+            <span
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: "var(--text)",
+                flexShrink: 0,
+              }}
+            >
               रु{s.value.toLocaleString()}
             </span>
           </div>
@@ -1343,10 +1392,7 @@ export default function ChartsTab({
                 textTransform: "uppercase",
                 letterSpacing: 0.6,
               }}
-            >
-            
-            </p>
-           
+            ></p>
           </div>
         </div>
 
@@ -1382,10 +1428,7 @@ export default function ChartsTab({
                 textTransform: "uppercase",
                 letterSpacing: 0.6,
               }}
-            >
-              
-            </p>
-            
+            ></p>
           </div>
         </div>
       </div>

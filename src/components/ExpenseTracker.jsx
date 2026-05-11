@@ -861,31 +861,27 @@ export default function ExpenseTracker({
     setSaving(true);
     try {
       if (editEntry) {
-        const updated = await pb
-          .collection("entries")
-          .update(editEntry, {
-            type: form.type,
-            amount: +form.amount,
-            category: form.category,
-            note: form.note,
-            date: form.date,
-            accountId: form.accountId,
-            userId,
-          });
+        const updated = await pb.collection("entries").update(editEntry, {
+          type: form.type,
+          amount: +form.amount,
+          category: form.category,
+          note: form.note,
+          date: form.date,
+          accountId: form.accountId,
+          userId,
+        });
         onEntriesChange(entries.map((e) => (e.id === editEntry ? updated : e)));
       } else {
-        const created = await pb
-          .collection("entries")
-          .create({
-            type: form.type,
-            amount: +form.amount,
-            category: form.category,
-            note: form.note,
-            date: form.date,
-            accountId: form.accountId,
-            userId,
-            isTransfer: false,
-          });
+        const created = await pb.collection("entries").create({
+          type: form.type,
+          amount: +form.amount,
+          category: form.category,
+          note: form.note,
+          date: form.date,
+          accountId: form.accountId,
+          userId,
+          isTransfer: false,
+        });
         onEntriesChange([created, ...entries]);
       }
       closeForm();
@@ -938,6 +934,325 @@ export default function ExpenseTracker({
   };
 
   if (loading) return <LoadingScreen />;
+  if (showForm) {
+    return (
+      <div className="page" style={{ padding: "16px", gap: 0 }}>
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 20,
+          }}
+        >
+          <button
+            onClick={closeForm}
+            style={{
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              padding: "8px 14px",
+              fontSize: 13,
+              color: "var(--text)",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            ← Back
+          </button>
+          <h1
+            style={{
+              fontFamily: "'Syne', sans-serif",
+              fontSize: 20,
+              fontWeight: 800,
+              color: "var(--text)",
+            }}
+          >
+            {editEntry ? "Edit Transaction" : "Add Transaction"}
+          </h1>
+        </div>
+
+        {/* Form */}
+        <div
+          style={{
+            maxWidth: 480,
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+          }}
+        >
+          <div className="type-toggle">
+            {["expense", "income"].map((t) => (
+              <button
+                key={t}
+                onClick={() => handleTypeChange(t)}
+                className={`toggle-btn ${form.type === t ? "active-" + t : ""}`}
+              >
+                {t === "expense" ? "− Expense" : "+ Income"}
+              </button>
+            ))}
+            <button
+              onClick={() => {
+                closeForm();
+                setShowTransfer(true);
+              }}
+              className="toggle-btn"
+              style={{
+                background: "rgba(99,102,241,0.12)",
+                color: "var(--accent)",
+                borderColor: "rgba(99,102,241,0.3)",
+              }}
+            >
+              ↔ Transfer
+            </button>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label className="input-label">Amount</label>
+            <input
+              type="number"
+              placeholder="0"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              className="input"
+              autoFocus
+              style={{ fontSize: 22, fontWeight: 700 }}
+            />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label className="input-label">Category</label>
+            <div className="cat-select-row">
+              <select
+                key={form.type}
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className="input"
+                style={{ flex: 1 }}
+              >
+                {currentCats.map((c) => (
+                  <option key={c.id || c.name} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="btn-manage-cats"
+                onClick={() => setCatModal(form.type)}
+              >
+                ⚙
+              </button>
+            </div>
+            {/* AI suggestion badge */}
+            {showAiCatBadge &&
+              ai?.catSuggestion &&
+              ai.catSuggestion !== form.category && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "7px 10px",
+                    borderRadius: "var(--radius-sm)",
+                    background: "rgba(99,102,241,0.1)",
+                    border: "1px solid rgba(99,102,241,0.3)",
+                  }}
+                >
+                  <span style={{ fontSize: 12 }}>✨</span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-muted)",
+                      flex: 1,
+                    }}
+                  >
+                    AI suggests:{" "}
+                    <strong style={{ color: "var(--accent)" }}>
+                      {ai.catSuggestion}
+                    </strong>
+                  </span>
+                  {ai.catLoading ? (
+                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      onClick={applyAiCategory}
+                      style={{
+                        background: "var(--accent)",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "var(--radius-sm)",
+                        padding: "3px 10px",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Apply
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowAiCatBadge(false)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--text-muted)",
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label className="input-label">Account</label>
+            <select
+              value={form.accountId}
+              onChange={(e) => setForm({ ...form, accountId: e.target.value })}
+              className="input"
+            >
+              {(accounts || []).map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.icon} {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label className="input-label">Note (optional)</label>
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                placeholder="What was this for?"
+                value={form.note}
+                onChange={(e) => setForm({ ...form, note: e.target.value })}
+                onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                className="input"
+              />
+              {showSuggestions && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)",
+                    overflow: "hidden",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+                    marginTop: 4,
+                  }}
+                >
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onMouseDown={() => {
+                        setForm((f) => ({ ...f, note: s }));
+                        setShowSuggestions(false);
+                      }}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "9px 14px",
+                        fontSize: 13,
+                        color: "var(--text)",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        borderBottom:
+                          i < suggestions.length - 1
+                            ? "1px solid var(--border)"
+                            : "none",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = "var(--surface-2)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label className="input-label">Date</label>
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              className="input"
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button
+              onClick={addEntry}
+              className="btn-primary"
+              style={{ flex: 1 }}
+              disabled={saving}
+            >
+              {saving
+                ? "Saving..."
+                : editEntry
+                  ? "Save Changes"
+                  : "Add Transaction"}
+            </button>
+            <button onClick={closeForm} className="btn-cancel">
+              Cancel
+            </button>
+          </div>
+
+          {editEntry && (
+            <button
+              onClick={async () => {
+                await pb.collection("entries").delete(editEntry);
+                onEntriesChange(entries.filter((e) => e.id !== editEntry));
+                closeForm();
+              }}
+              style={{
+                width: "100%",
+                padding: "11px",
+                borderRadius: "var(--radius-sm)",
+                background: "rgba(239,68,68,0.08)",
+                color: "var(--red)",
+                border: "1px solid rgba(239,68,68,0.2)",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              🗑 Delete Transaction
+            </button>
+          )}
+        </div>
+
+        {catModal && (
+          <CategoryManager
+            type={catModal}
+            categories={catModal === "expense" ? expCats : incCats}
+            onAdd={(cat) => handleAddCat(catModal, cat)}
+            onDelete={(name) => handleDeleteCat(catModal, name)}
+            onClose={() => setCatModal(null)}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="page" style={{ padding: "16px", gap: 0 }}>
@@ -966,13 +1281,11 @@ export default function ExpenseTracker({
               accounts={accounts}
               onSave={async (amount, note, date) => {
                 // update both entries
-                await pb
-                  .collection("entries")
-                  .update(editTransfer.id, {
-                    amount,
-                    note: `Transfer to ${accounts.find((a) => a.id === editTransfer._transferTo?.accountId)?.name}: ${note}`,
-                    date,
-                  });
+                await pb.collection("entries").update(editTransfer.id, {
+                  amount,
+                  note: `Transfer to ${accounts.find((a) => a.id === editTransfer._transferTo?.accountId)?.name}: ${note}`,
+                  date,
+                });
                 await pb
                   .collection("entries")
                   .update(editTransfer._transferTo.id, {
@@ -1593,7 +1906,6 @@ export default function ExpenseTracker({
                               gap: 10,
                             }}
                           >
-                            
                             <div>
                               <p
                                 style={{
@@ -1666,7 +1978,6 @@ export default function ExpenseTracker({
                           minWidth: 0,
                         }}
                       >
-                        
                         <div style={{ minWidth: 0 }}>
                           <p
                             style={{
@@ -1711,7 +2022,7 @@ export default function ExpenseTracker({
                                   background: "var(--surface-2)",
                                   color: "var(--text-muted)",
                                   fontSize: 10,
-                                   border: "1px solid var(--border)" 
+                                  border: "1px solid var(--border)",
                                 }}
                               >
                                 {acc.icon} {acc.name}
