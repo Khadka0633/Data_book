@@ -25,74 +25,148 @@ function PieChart({ data, label = "TOTAL", onSliceClick }) {
     );
 
   let cumAngle = -90;
-  const radius = 80,
-    cx = 100,
-    cy = 100;
+  const radius = 90, cx = 160, cy = 160;
+
   const slices = data
     .filter((d) => d.value > 0)
     .map((d) => {
       const pct = d.value / total;
       const angle = pct * 360;
+      const midAngle = cumAngle + angle / 2;
       const sa = (cumAngle * Math.PI) / 180;
       const ea = ((cumAngle + angle) * Math.PI) / 180;
-      const x1 = cx + radius * Math.cos(sa),
-        y1 = cy + radius * Math.sin(sa);
-      const x2 = cx + radius * Math.cos(ea),
-        y2 = cy + radius * Math.sin(ea);
+      const x1 = cx + radius * Math.cos(sa);
+      const y1 = cy + radius * Math.sin(sa);
+      const x2 = cx + radius * Math.cos(ea);
+      const y2 = cy + radius * Math.sin(ea);
       const path = `M${cx},${cy} L${x1},${y1} A${radius},${radius} 0 ${angle > 180 ? 1 : 0} 1 ${x2},${y2} Z`;
+
+      // Label line points
+      const labelR = radius + 20;
+      const labelEndR = radius + 35;
+      const midRad = (midAngle * Math.PI) / 180;
+      const lx1 = cx + radius * Math.cos(midRad);
+      const ly1 = cy + radius * Math.sin(midRad);
+      const lx2 = cx + labelR * Math.cos(midRad);
+      const ly2 = cy + labelR * Math.sin(midRad);
+      const lx3 = cx + labelEndR * Math.cos(midRad);
+      const ly3 = cy + labelEndR * Math.sin(midRad);
+      const textX = cx + (labelEndR + 4) * Math.cos(midRad);
+      const textY = cy + (labelEndR + 4) * Math.sin(midRad);
+      const textAnchor = textX > cx ? "start" : "end";
+
       cumAngle += angle;
-      return { ...d, path, pct };
+      return { ...d, path, pct, midAngle, lx1, ly1, lx2, ly2, lx3, ly3, textX, textY, textAnchor };
     });
 
   return (
-    <div className="pie-wrapper">
-      <svg viewBox="0 0 200 200" className="pie-svg">
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+      {/* Pie SVG */}
+      <svg viewBox="0 0 320 320" style={{ width: "100%", maxWidth: 320 }}>
         {slices.map((s, i) => (
-          <path
-            key={i}
-            d={s.path}
-            fill={s.color}
-            opacity="0.9"
-            onClick={() => onSliceClick && onSliceClick(s.label)}
-            style={{ cursor: onSliceClick ? "pointer" : "default" }}
-          >
-            <title>
-              {s.label}: रु{s.value.toFixed(2)} ({(s.pct * 100).toFixed(1)}%)
-            </title>
-          </path>
+          <g key={i} onClick={() => onSliceClick && onSliceClick(s.label)} style={{ cursor: "pointer" }}>
+            <path
+              d={s.path}
+              fill={s.color}
+              opacity="0.9"
+              stroke="var(--surface)"
+              strokeWidth="1.5"
+            >
+              <title>{s.label}: रु{s.value.toFixed(0)} ({(s.pct * 100).toFixed(1)}%)</title>
+            </path>
+            {/* Only show label if slice is big enough */}
+            {s.pct > 0.04 && (
+              <>
+                <line
+                  x1={s.lx1} y1={s.ly1}
+                  x2={s.lx3} y2={s.ly3}
+                  stroke={s.color}
+                  strokeWidth="1"
+                  opacity="0.7"
+                />
+                <text
+                  x={s.textX}
+                  y={s.textY - 5}
+                  textAnchor={s.textAnchor}
+                  fill="var(--text)"
+                  fontSize="9"
+                  fontWeight="600"
+                >
+                  {s.label.length > 8 ? s.label.slice(0, 7) + "…" : s.label}
+                </text>
+                <text
+                  x={s.textX}
+                  y={s.textY + 7}
+                  textAnchor={s.textAnchor}
+                  fill={s.color}
+                  fontSize="8"
+                  fontWeight="700"
+                >
+                  {(s.pct * 100).toFixed(1)}%
+                </text>
+              </>
+            )}
+          </g>
         ))}
-        <circle cx={cx} cy={cy} r="45" fill="var(--surface)" />
-        <text
-          x={cx}
-          y={cy - 8}
-          textAnchor="middle"
-          fill="var(--text-muted)"
-          fontSize="9"
-        >
-          {label}
-        </text>
-        <text
-          x={cx}
-          y={cy + 8}
-          textAnchor="middle"
-          fill="var(--text)"
-          fontSize="13"
-          fontWeight="600"
-        >
-          रु{total.toFixed(0)}
-        </text>
       </svg>
-      <div className="pie-legend">
+
+      {/* Category list with badge */}
+      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 2 }}>
         {slices.map((s, i) => (
           <div
             key={i}
-            className="legend-item"
             onClick={() => onSliceClick && onSliceClick(s.label)}
-            style={{ cursor: onSliceClick ? "pointer" : "default" }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "10px 8px",
+              borderBottom: "1px solid var(--border)",
+              cursor: "pointer",
+              borderRadius: "var(--radius-sm)",
+              transition: "background 0.12s",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
           >
-            <span className="legend-dot" style={{ background: s.color }} />
-            <span className="legend-label">{s.label}</span>
-            <span className="legend-val">रु{s.value.toFixed(0)}</span>
+            {/* Percentage badge */}
+            <div style={{
+              minWidth: 42,
+              height: 28,
+              borderRadius: 6,
+              background: s.color,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>
+                {Math.round(s.pct * 100)}%
+              </span>
+            </div>
+
+            {/* Category name */}
+            <span style={{
+              flex: 1,
+              fontSize: 14,
+              fontWeight: 500,
+              color: "var(--text)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}>
+              {s.label}
+            </span>
+
+            {/* Amount */}
+            <span style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: "var(--text)",
+              flexShrink: 0,
+            }}>
+              रु{s.value.toLocaleString()}
+            </span>
           </div>
         ))}
       </div>
@@ -1122,62 +1196,89 @@ export default function ChartsTab({
         />
       )}
 
-       {/* Header */}
-<div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-  <div>
-    <h1 className="page-title">Charts</h1>
-    <p className="page-sub">Visual breakdown of your finances</p>
-  </div>
-  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-    <button
-      onClick={() => setShowLifetime((v) => !v)}
-      style={{
-        background: showLifetime ? "rgba(99,102,241,0.2)" : "var(--surface-2)",
-        color: showLifetime ? "var(--accent)" : "var(--text-muted)",
-        border: showLifetime ? "1px solid rgba(99,102,241,0.4)" : "1px solid var(--border)",
-        borderRadius: "var(--radius-sm)",
-        padding: "8px 14px",
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-      }}
-    >
-      📊 Lifetime
-    </button>
-    <input
-      type="month"
-      value={chartMonth}
-      onChange={(e) => { setChartMonth(e.target.value); setShowLifetime(false); }}
-      style={{ width: 130, 
-    opacity: showLifetime ? 0.4 : 1,
-    padding: "8px 14px",
-    background: "var(--surface-2)",
-    border: "1px solid var(--border)",
-    borderRadius: "var(--radius-sm)",
-    color: "var(--text)",
-    fontSize: 13,
-    fontWeight: 600,
-    outline: "none", }}
-      disabled={showLifetime}
-    />
-    <button
-      className="btn-transfer"
-      onClick={() => exportCSV(entries, accounts, chartMonth)}
-      style={{ background: "rgba(99,102,241,0.1)",
-    color: "var(--accent)",
-    border: "1px solid rgba(99,102,241,0.3)",
-    borderRadius: "var(--radius-sm)",
-    padding: "8px 14px",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-    whiteSpace: "nowrap", }}
-    >
-      ↓ Export CSV
-    </button>
-  </div>
-</div>
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 20,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h1 className="page-title">Charts</h1>
+          <p className="page-sub">Visual breakdown of your finances</p>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            onClick={() => setShowLifetime((v) => !v)}
+            style={{
+              background: showLifetime
+                ? "rgba(99,102,241,0.2)"
+                : "var(--surface-2)",
+              color: showLifetime ? "var(--accent)" : "var(--text-muted)",
+              border: showLifetime
+                ? "1px solid rgba(99,102,241,0.4)"
+                : "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            📊 Lifetime
+          </button>
+          <input
+            type="month"
+            value={chartMonth}
+            onChange={(e) => {
+              setChartMonth(e.target.value);
+              setShowLifetime(false);
+            }}
+            style={{
+              width: 130,
+              opacity: showLifetime ? 0.4 : 1,
+              padding: "8px 14px",
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              color: "var(--text)",
+              fontSize: 13,
+              fontWeight: 600,
+              outline: "none",
+            }}
+            disabled={showLifetime}
+          />
+          <button
+            className="btn-transfer"
+            onClick={() => exportCSV(entries, accounts, chartMonth)}
+            style={{
+              background: "rgba(99,102,241,0.1)",
+              color: "var(--accent)",
+              border: "1px solid rgba(99,102,241,0.3)",
+              borderRadius: "var(--radius-sm)",
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            ↓ Export CSV
+          </button>
+        </div>
+      </div>
       {/* Monthly summary */}
       <div className="stat-grid">
         <div className="stat-card income-card">
@@ -1243,15 +1344,9 @@ export default function ChartsTab({
                 letterSpacing: 0.6,
               }}
             >
-              Categories — click to analyze
+            
             </p>
-            <CategoryList
-              entries={entries}
-              type="income"
-              categories={incCats}
-              chartMonth={chartMonth}
-              onCategoryClick={openModal}
-            />
+           
           </div>
         </div>
 
@@ -1288,15 +1383,9 @@ export default function ChartsTab({
                 letterSpacing: 0.6,
               }}
             >
-              Categories — click to analyze
+              
             </p>
-            <CategoryList
-              entries={entries}
-              type="expense"
-              categories={expCats}
-              chartMonth={chartMonth}
-              onCategoryClick={openModal}
-            />
+            
           </div>
         </div>
       </div>
