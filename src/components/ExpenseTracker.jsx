@@ -684,7 +684,8 @@ export default function ExpenseTracker({
 
   // ── AI auto-categorization state ──────────────────────────────
   const [showAiCatBadge, setShowAiCatBadge] = useState(false);
-
+  const [showCatPicker, setShowCatPicker] = useState(false);
+  const [showAccPicker, setShowAccPicker] = useState(false);
   const loadData = useCallback(async () => {
     if (hasLoaded.current) return;
     hasLoaded.current = true;
@@ -934,289 +935,416 @@ export default function ExpenseTracker({
   };
 
   if (loading) return <LoadingScreen />;
+
   if (showForm) {
     return (
-      <div className="page" style={{ padding: "16px", gap: 0 }}>
-        {/* Header */}
+      <div
+        className="page"
+        style={{
+          padding: 0,
+          gap: 0,
+          maxWidth: "100%",
+          background: "var(--bg)",
+          minHeight: "100vh",
+        }}
+      >
+        {/* ── Top bar ── */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 12,
-            marginBottom: 20,
+            justifyContent: "space-between",
+            padding: "16px 20px",
+            borderBottom: "1px solid var(--border)",
           }}
         >
           <button
             onClick={closeForm}
             style={{
-              background: "var(--surface-2)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)",
-              padding: "8px 14px",
-              fontSize: 13,
+              background: "none",
+              border: "none",
               color: "var(--text)",
-              cursor: "pointer",
+              fontSize: 15,
               fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
             }}
           >
-            ← Back
+            ‹ Back
           </button>
-          <h1
-            style={{
-              fontFamily: "'Syne', sans-serif",
-              fontSize: 20,
-              fontWeight: 800,
-              color: "var(--text)",
-            }}
-          >
-            {editEntry ? "Edit Transaction" : "Add Transaction"}
-          </h1>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
+            {form.type === "expense"
+              ? "Expense"
+              : form.type === "income"
+                ? "Income"
+                : "Transfer"}
+          </span>
+          <div style={{ width: 60 }} />
         </div>
 
-        {/* Form */}
+        {/* ── Type toggle ── */}
         <div
-          style={{
-            maxWidth: 480,
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-          }}
+          style={{ display: "flex", borderBottom: "1px solid var(--border)" }}
         >
-          <div className="type-toggle">
-            {["expense", "income"].map((t) => (
-              <button
-                key={t}
-                onClick={() => handleTypeChange(t)}
-                className={`toggle-btn ${form.type === t ? "active-" + t : ""}`}
-              >
-                {t === "expense" ? "− Expense" : "+ Income"}
-              </button>
-            ))}
+          {["income", "expense"].map((t) => (
             <button
-              onClick={() => {
-                closeForm();
-                setShowTransfer(true);
-              }}
-              className="toggle-btn"
+              key={t}
+              onClick={() => handleTypeChange(t)}
               style={{
-                background: "rgba(99,102,241,0.12)",
-                color: "var(--accent)",
-                borderColor: "rgba(99,102,241,0.3)",
+                flex: 1,
+                padding: "14px 0",
+                fontSize: 14,
+                fontWeight: 600,
+                border: "none",
+                cursor: "pointer",
+                background: "transparent",
+                color:
+                  form.type === t
+                    ? t === "expense"
+                      ? "var(--red)"
+                      : "var(--green)"
+                    : "var(--text-muted)",
+                borderBottom:
+                  form.type === t
+                    ? `2px solid ${t === "expense" ? "var(--red)" : "var(--green)"}`
+                    : "2px solid transparent",
+                marginBottom: "-1px",
               }}
             >
-              ↔ Transfer
+              {t === "expense" ? "Expense" : "Income"}
             </button>
-          </div>
+          ))}
+          <button
+            onClick={() => {
+              closeForm();
+              setShowTransfer(true);
+            }}
+            style={{
+              flex: 1,
+              padding: "14px 0",
+              fontSize: 14,
+              fontWeight: 600,
+              border: "none",
+              cursor: "pointer",
+              background: "transparent",
+              color: "var(--text-muted)",
+              borderBottom: "2px solid transparent",
+              marginBottom: "-1px",
+            }}
+          >
+            Transfer
+          </button>
+        </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label className="input-label">Amount</label>
+        {/* ── Form fields ── */}
+        <div style={{ padding: "0 20px" }}>
+          {/* Amount */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              padding: "18px 0",
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 15,
+                color: "var(--text-muted)",
+                width: 90,
+                flexShrink: 0,
+              }}
+            >
+              Amount
+            </span>
             <input
               type="number"
               placeholder="0"
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
-              className="input"
               autoFocus
-              style={{ fontSize: 22, fontWeight: 700 }}
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                fontSize: 16,
+                color: "var(--text)",
+                fontFamily: "inherit",
+                textAlign: "right",
+              }}
             />
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label className="input-label">Category</label>
-            <div className="cat-select-row">
-              <select
-                key={form.type}
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="input"
-                style={{ flex: 1 }}
-              >
-                {currentCats.map((c) => (
-                  <option key={c.id || c.name} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="btn-manage-cats"
-                onClick={() => setCatModal(form.type)}
-              >
-                ⚙
-              </button>
-            </div>
-            {/* AI suggestion badge */}
-            {showAiCatBadge &&
-              ai?.catSuggestion &&
-              ai.catSuggestion !== form.category && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "7px 10px",
-                    borderRadius: "var(--radius-sm)",
-                    background: "rgba(99,102,241,0.1)",
-                    border: "1px solid rgba(99,102,241,0.3)",
-                  }}
-                >
-                  <span style={{ fontSize: 12 }}>✨</span>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: "var(--text-muted)",
-                      flex: 1,
-                    }}
-                  >
-                    AI suggests:{" "}
-                    <strong style={{ color: "var(--accent)" }}>
-                      {ai.catSuggestion}
-                    </strong>
-                  </span>
-                  {ai.catLoading ? (
-                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                      ...
-                    </span>
-                  ) : (
-                    <button
-                      onClick={applyAiCategory}
-                      style={{
-                        background: "var(--accent)",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "var(--radius-sm)",
-                        padding: "3px 10px",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Apply
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setShowAiCatBadge(false)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "var(--text-muted)",
-                      cursor: "pointer",
-                      fontSize: 13,
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-          </div>
+        {/* Date */}
+<div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer", position: "relative" }}
+  onClick={() => document.getElementById('date-input').showPicker?.()}>
+  <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Date</span>
+  <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>
+    {new Date(form.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+  </span>
+  <input
+    id="date-input"
+    type="date"
+    value={form.date}
+    onChange={e => setForm({ ...form, date: e.target.value })}
+    style={{ position: "absolute", opacity: 0, width: "100%", height: "100%", top: 0, left: 0, cursor: "pointer" }}
+  />
+</div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label className="input-label">Account</label>
-            <select
-              value={form.accountId}
-              onChange={(e) => setForm({ ...form, accountId: e.target.value })}
-              className="input"
+          {/* Category */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              padding: "18px 0",
+              borderBottom: "1px solid var(--border)",
+              cursor: "pointer",
+            }}
+            onClick={() => setShowCatPicker(true)}
+          >
+            <span
+              style={{
+                fontSize: 15,
+                color: "var(--text-muted)",
+                width: 90,
+                flexShrink: 0,
+              }}
             >
-              {(accounts || []).map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.icon} {a.name}
-                </option>
-              ))}
-            </select>
+              Category
+            </span>
+            <span
+              style={{
+                flex: 1,
+                fontSize: 15,
+                color: "var(--text)",
+                textAlign: "right",
+              }}
+            >
+              {form.category || "Select..."}
+            </span>
+            <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label className="input-label">Note (optional)</label>
-            <div style={{ position: "relative" }}>
-              <input
-                type="text"
-                placeholder="What was this for?"
-                value={form.note}
-                onChange={(e) => setForm({ ...form, note: e.target.value })}
-                onFocus={() => setShowSuggestions(suggestions.length > 0)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                className="input"
-              />
-              {showSuggestions && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    zIndex: 50,
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-md)",
-                    overflow: "hidden",
-                    boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
-                    marginTop: 4,
-                  }}
-                >
-                  {suggestions.map((s, i) => (
-                    <button
-                      key={i}
-                      onMouseDown={() => {
-                        setForm((f) => ({ ...f, note: s }));
-                        setShowSuggestions(false);
-                      }}
-                      style={{
-                        display: "block",
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "9px 14px",
-                        fontSize: 13,
-                        color: "var(--text)",
-                        background: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                        borderBottom:
-                          i < suggestions.length - 1
-                            ? "1px solid var(--border)"
-                            : "none",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = "var(--surface-2)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* Account */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              padding: "18px 0",
+              borderBottom: "1px solid var(--border)",
+              cursor: "pointer",
+            }}
+            onClick={() => setShowAccPicker(true)}
+          >
+            <span
+              style={{
+                fontSize: 15,
+                color: "var(--text-muted)",
+                width: 90,
+                flexShrink: 0,
+              }}
+            >
+              Account
+            </span>
+            <span
+              style={{
+                flex: 1,
+                fontSize: 15,
+                color: "var(--text)",
+                textAlign: "right",
+              }}
+            >
+              {accounts.find((a) => a.id === form.accountId)?.icon}{" "}
+              {accounts.find((a) => a.id === form.accountId)?.name ||
+                "Select..."}
+            </span>
+            <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
           </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label className="input-label">Date</label>
+          {/* Note */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              padding: "18px 0",
+              borderBottom: "1px solid var(--border)",
+              position: "relative",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 15,
+                color: "var(--text-muted)",
+                width: 90,
+                flexShrink: 0,
+              }}
+            >
+              Note
+            </span>
             <input
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm({ ...form, date: e.target.value })}
-              className="input"
+              type="text"
+              placeholder="Add a note..."
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+              onFocus={() => setShowSuggestions(suggestions.length > 0)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                fontSize: 15,
+                color: "var(--text)",
+                fontFamily: "inherit",
+                textAlign: "right",
+              }}
             />
+            {showSuggestions && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  zIndex: 50,
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  overflow: "hidden",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+                  marginTop: 4,
+                }}
+              >
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onMouseDown={() => {
+                      setForm((f) => ({ ...f, note: s }));
+                      setShowSuggestions(false);
+                    }}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "9px 14px",
+                      fontSize: 13,
+                      color: "var(--text)",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      borderBottom:
+                        i < suggestions.length - 1
+                          ? "1px solid var(--border)"
+                          : "none",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "var(--surface-2)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button
-              onClick={addEntry}
-              className="btn-primary"
-              style={{ flex: 1 }}
-              disabled={saving}
-            >
-              {saving
-                ? "Saving..."
-                : editEntry
-                  ? "Save Changes"
-                  : "Add Transaction"}
-            </button>
-            <button onClick={closeForm} className="btn-cancel">
-              Cancel
-            </button>
-          </div>
+          {/* AI suggestion */}
+          {showAiCatBadge &&
+            ai?.catSuggestion &&
+            ai.catSuggestion !== form.category && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 12,
+                  padding: "7px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  background: "rgba(99,102,241,0.1)",
+                  border: "1px solid rgba(99,102,241,0.3)",
+                }}
+              >
+                <span style={{ fontSize: 12 }}>✨</span>
+                <span
+                  style={{ fontSize: 12, color: "var(--text-muted)", flex: 1 }}
+                >
+                  AI suggests:{" "}
+                  <strong style={{ color: "var(--accent)" }}>
+                    {ai.catSuggestion}
+                  </strong>
+                </span>
+                <button
+                  onClick={applyAiCategory}
+                  style={{
+                    background: "var(--accent)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "3px 10px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Apply
+                </button>
+                <button
+                  onClick={() => setShowAiCatBadge(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--text-muted)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+        </div>
 
+        {/* ── Save button ── */}
+        <div
+          style={{
+            padding: "24px 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            marginTop: "auto",
+          }}
+        >
+          <button
+            onClick={addEntry}
+            disabled={saving}
+            style={{
+              width: "100%",
+              padding: "14px",
+              borderRadius: "var(--radius-md)",
+              background:
+                form.type === "expense"
+                  ? "var(--red)"
+                  : form.type === "income"
+                    ? "var(--green)"
+                    : "var(--accent)",
+              color: "#fff",
+              border: "none",
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {saving
+              ? "Saving..."
+              : editEntry
+                ? "Save Changes"
+                : `Add ${form.type === "expense" ? "Expense" : "Income"}`}
+          </button>
           {editEntry && (
             <button
               onClick={async () => {
@@ -1226,17 +1354,17 @@ export default function ExpenseTracker({
               }}
               style={{
                 width: "100%",
-                padding: "11px",
-                borderRadius: "var(--radius-sm)",
-                background: "rgba(239,68,68,0.08)",
+                padding: "12px",
+                borderRadius: "var(--radius-md)",
+                background: "transparent",
                 color: "var(--red)",
-                border: "1px solid rgba(239,68,68,0.2)",
-                fontSize: 13,
+                border: "1px solid rgba(239,68,68,0.3)",
+                fontSize: 14,
                 fontWeight: 600,
                 cursor: "pointer",
               }}
             >
-              🗑 Delete Transaction
+              🗑 Delete
             </button>
           )}
         </div>
@@ -1249,6 +1377,234 @@ export default function ExpenseTracker({
             onDelete={(name) => handleDeleteCat(catModal, name)}
             onClose={() => setCatModal(null)}
           />
+        )}
+
+        {/* Account Picker Bottom Sheet */}
+        {showAccPicker && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 200,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "flex-end",
+              background: "rgba(0,0,0,0.5)",
+            }}
+            onClick={() => setShowAccPicker(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "var(--surface)",
+                borderRadius: "20px 20px 0 0",
+                padding: "20px 16px",
+                maxHeight: "70vh",
+                overflowY: "auto",
+              }}
+            >
+              <div
+                style={{
+                  width: 36,
+                  height: 4,
+                  borderRadius: 2,
+                  background: "var(--border)",
+                  margin: "0 auto 16px",
+                }}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "var(--text)",
+                  }}
+                >
+                  Account
+                </span>
+                <button
+                  onClick={() => setShowAccPicker(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--text-muted)",
+                    fontSize: 18,
+                    cursor: "pointer",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 1,
+                  background: "var(--border)",
+                }}
+              >
+                {(accounts || []).map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => {
+                      setForm((f) => ({ ...f, accountId: a.id }));
+                      setShowAccPicker(false);
+                    }}
+                    style={{
+                      padding: "18px 8px",
+                      fontSize: 14,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      border: "none",
+                      background:
+                        form.accountId === a.id
+                          ? "rgba(99,102,241,0.15)"
+                          : "var(--surface-2)",
+                      color:
+                        form.accountId === a.id
+                          ? "var(--accent)"
+                          : "var(--text)",
+                      textAlign: "center",
+                    }}
+                  >
+                    {a.icon} {a.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Category Picker Bottom Sheet */}
+        {showCatPicker && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 200,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "flex-end",
+              background: "rgba(0,0,0,0.5)",
+            }}
+            onClick={() => setShowCatPicker(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "var(--surface)",
+                borderRadius: "20px 20px 0 0",
+                padding: "20px 16px",
+                maxHeight: "70vh",
+                overflowY: "auto",
+              }}
+            >
+              <div
+                style={{
+                  width: 36,
+                  height: 4,
+                  borderRadius: 2,
+                  background: "var(--border)",
+                  margin: "0 auto 16px",
+                }}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "var(--text)",
+                  }}
+                >
+                  Category
+                </span>
+                <button
+                  onClick={() => setShowCatPicker(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--text-muted)",
+                    fontSize: 18,
+                    cursor: "pointer",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 1,
+                  background: "var(--border)",
+                }}
+              >
+                {currentCats.map((c) => (
+                  <button
+                    key={c.id || c.name}
+                    onClick={() => {
+                      setForm((f) => ({ ...f, category: c.name }));
+                      setShowCatPicker(false);
+                    }}
+                    style={{
+                      padding: "18px 8px",
+                      fontSize: 14,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      border: "none",
+                      background:
+                        form.category === c.name
+                          ? "rgba(99,102,241,0.15)"
+                          : "var(--surface-2)",
+                      color:
+                        form.category === c.name
+                          ? "var(--accent)"
+                          : "var(--text)",
+                      textAlign: "center",
+                    }}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setShowCatPicker(false);
+                    setCatModal(form.type);
+                  }}
+                  style={{
+                    padding: "18px 8px",
+                    fontSize: 14,
+                    cursor: "pointer",
+                    border: "none",
+                    background: "var(--surface-2)",
+                    color: "var(--text-muted)",
+                    textAlign: "center",
+                    fontWeight: 500,
+                  }}
+                >
+                  + Add
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );
@@ -1344,288 +1700,6 @@ export default function ExpenseTracker({
           getCatColor={getCatColor}
           onClose={() => setCatHistory(null)}
         />
-      )}
-
-      {/* ── Add/Edit Modal ── */}
-      {showForm && (
-        <div
-          className="modal-overlay"
-          onClick={closeForm}
-          style={{ zIndex: 100 }}
-        >
-          <div
-            className="modal-card"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: 420,
-              width: "100%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-          >
-            <div className="modal-header">
-              <h3 className="modal-title">
-                {editEntry ? "Edit" : "Add Transaction"}
-              </h3>
-              <button className="modal-close" onClick={closeForm}>
-                ✕
-              </button>
-            </div>
-            <div className="form-group">
-              <div className="type-toggle">
-                {["expense", "income"].map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => handleTypeChange(t)}
-                    className={`toggle-btn ${form.type === t ? "active-" + t : ""}`}
-                  >
-                    {t === "expense" ? "− Expense" : "+ Income"}
-                  </button>
-                ))}
-                <button
-                  onClick={() => {
-                    closeForm();
-                    setShowTransfer(true);
-                  }}
-                  className="toggle-btn"
-                  style={{
-                    background: "rgba(99,102,241,0.12)",
-                    color: "var(--accent)",
-                    borderColor: "rgba(99,102,241,0.3)",
-                  }}
-                >
-                  ↔ Transfer
-                </button>
-              </div>
-
-              <input
-                type="number"
-                placeholder="Amount"
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                className="input"
-                autoFocus
-              />
-
-              {/* Category row with AI suggestion badge */}
-              <div style={{ position: "relative" }}>
-                <div className="cat-select-row">
-                  <select
-                    key={form.type}
-                    value={form.category}
-                    onChange={(e) =>
-                      setForm({ ...form, category: e.target.value })
-                    }
-                    className="input"
-                    style={{ flex: 1, minWidth: 0 }}
-                  >
-                    {currentCats.map((c) => (
-                      <option key={c.id || c.name} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="btn-manage-cats"
-                    onClick={() => setCatModal(form.type)}
-                  >
-                    ⚙
-                  </button>
-                </div>
-                {/* AI category suggestion badge */}
-                {showAiCatBadge &&
-                  ai?.catSuggestion &&
-                  ai.catSuggestion !== form.category && (
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        marginTop: 6,
-                        padding: "7px 10px",
-                        borderRadius: "var(--radius-sm)",
-                        background: "rgba(99,102,241,0.1)",
-                        border: "1px solid rgba(99,102,241,0.3)",
-                      }}
-                    >
-                      <span style={{ fontSize: 12 }}>✨</span>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color: "var(--text-muted)",
-                          flex: 1,
-                        }}
-                      >
-                        AI suggests:{" "}
-                        <strong style={{ color: "var(--accent)" }}>
-                          {ai.catSuggestion}
-                        </strong>
-                      </span>
-                      {ai.catLoading ? (
-                        <span
-                          style={{ fontSize: 11, color: "var(--text-muted)" }}
-                        >
-                          ...
-                        </span>
-                      ) : (
-                        <button
-                          onClick={applyAiCategory}
-                          style={{
-                            background: "var(--accent)",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "var(--radius-sm)",
-                            padding: "3px 10px",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Apply
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setShowAiCatBadge(false)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "var(--text-muted)",
-                          cursor: "pointer",
-                          fontSize: 13,
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
-              </div>
-
-              <select
-                value={form.accountId}
-                onChange={(e) =>
-                  setForm({ ...form, accountId: e.target.value })
-                }
-                className="input"
-              >
-                {(accounts || []).map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.icon} {a.name}
-                  </option>
-                ))}
-              </select>
-
-              <div style={{ position: "relative" }}>
-                <input
-                  type="text"
-                  placeholder="Note (optional)"
-                  value={form.note}
-                  onChange={(e) => setForm({ ...form, note: e.target.value })}
-                  onFocus={() => setShowSuggestions(suggestions.length > 0)}
-                  onBlur={() =>
-                    setTimeout(() => setShowSuggestions(false), 150)
-                  }
-                  className="input"
-                />
-                {showSuggestions && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      zIndex: 50,
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-md)",
-                      overflow: "hidden",
-                      boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
-                      marginTop: 4,
-                    }}
-                  >
-                    {suggestions.map((s, i) => (
-                      <button
-                        key={i}
-                        onMouseDown={() => {
-                          setForm((f) => ({ ...f, note: s }));
-                          setShowSuggestions(false);
-                        }}
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          textAlign: "left",
-                          padding: "9px 14px",
-                          fontSize: 13,
-                          color: "var(--text)",
-                          background: "transparent",
-                          border: "none",
-                          cursor: "pointer",
-                          borderBottom:
-                            i < suggestions.length - 1
-                              ? "1px solid var(--border)"
-                              : "none",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background =
-                            "var(--surface-2)")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = "transparent")
-                        }
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-                className="input"
-              />
-
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={addEntry}
-                  className="btn-primary"
-                  style={{ flex: 1 }}
-                  disabled={saving}
-                >
-                  {saving ? "Saving..." : editEntry ? "Save Changes" : "Add"}
-                </button>
-                {editEntry && (
-                  <button onClick={closeForm} className="btn-cancel">
-                    Cancel
-                  </button>
-                )}
-              </div>
-              {editEntry && (
-                <button
-                  onClick={async () => {
-                    await pb.collection("entries").delete(editEntry);
-                    onEntriesChange(entries.filter((e) => e.id !== editEntry));
-                    closeForm();
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "var(--radius-sm)",
-                    background: "rgba(239,68,68,0.08)",
-                    color: "var(--red)",
-                    border: "1px solid rgba(239,68,68,0.2)",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  🗑 Delete
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
       )}
 
       {catModal && (
