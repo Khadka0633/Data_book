@@ -1,19 +1,14 @@
 import { useState } from "react";
 import pb from "../pb";
 
-// ── Views ──────────────────────────────────────────────────────────
-// "login" | "register" | "forgot" | "forgot-sent" | "verify-notice"
-
 export default function Login({ onLogin }) {
   const [view, setView] = useState("login");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
   const reset = (nextView) => {
     setError("");
-    setSuccess("");
     setForm({ name: "", email: "", password: "" });
     setView(nextView);
   };
@@ -21,7 +16,6 @@ export default function Login({ onLogin }) {
   // ── Login ────────────────────────────────────────────────────────
   const handleLogin = async () => {
     setError("");
-    setSuccess("");
     if (!form.email.trim()) return setError("Please enter your email.");
     if (!form.password) return setError("Please enter your password.");
     setLoading(true);
@@ -36,10 +30,7 @@ export default function Login({ onLogin }) {
       });
     } catch (err) {
       const msg = err?.response?.message || err?.message || "";
-      if (msg.toLowerCase().includes("not verified")) {
-        // Store email so resend works
-        setView("verify-notice");
-      } else if (
+      if (
         msg.toLowerCase().includes("failed to authenticate") ||
         msg.toLowerCase().includes("invalid")
       ) {
@@ -55,7 +46,6 @@ export default function Login({ onLogin }) {
   // ── Register ─────────────────────────────────────────────────────
   const handleRegister = async () => {
     setError("");
-    setSuccess("");
     if (!form.name.trim()) return setError("Please enter your name.");
     if (!form.email.trim()) return setError("Please enter your email.");
     if (form.password.length < 8)
@@ -68,9 +58,14 @@ export default function Login({ onLogin }) {
         password: form.password,
         passwordConfirm: form.password,
       });
-      // Send verification email
-      await pb.collection("users").requestVerification(form.email.trim());
-      setView("verify-notice");
+      const authData = await pb
+        .collection("users")
+        .authWithPassword(form.email.trim(), form.password);
+      onLogin({
+        name: authData.record.name,
+        email: authData.record.email,
+        id: authData.record.id,
+      });
     } catch (err) {
       const msg = err?.response?.message || err?.message || "";
       if (
@@ -89,38 +84,18 @@ export default function Login({ onLogin }) {
   // ── Forgot Password ───────────────────────────────────────────────
   const handleForgot = async () => {
     setError("");
-    setSuccess("");
     if (!form.email.trim()) return setError("Please enter your email.");
     setLoading(true);
     try {
       await pb.collection("users").requestPasswordReset(form.email.trim());
       setView("forgot-sent");
     } catch (err) {
-      // Don't reveal if email exists or not — just show sent
       setView("forgot-sent");
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Resend Verification ───────────────────────────────────────────
-  const handleResend = async () => {
-    setError("");
-    setSuccess("");
-    if (!form.email.trim())
-      return setError("Please enter your email address above first.");
-    setLoading(true);
-    try {
-      await pb.collection("users").requestVerification(form.email.trim());
-      setSuccess("Verification email sent! Check your inbox.");
-    } catch (err) {
-      setError("Failed to resend. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="login-shell">
       <div className="login-blob blob-1" />
@@ -158,13 +133,10 @@ export default function Login({ onLogin }) {
                   placeholder="••••••••"
                   className="input"
                   value={form.password}
-                  onChange={(e) =>
-                    setForm({ ...form, password: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 />
               </div>
-              {/* Forgot password link */}
               <button
                 onClick={() => reset("forgot")}
                 style={{
@@ -236,9 +208,7 @@ export default function Login({ onLogin }) {
                   placeholder="Min. 8 characters"
                   className="input"
                   value={form.password}
-                  onChange={(e) =>
-                    setForm({ ...form, password: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
                   onKeyDown={(e) => e.key === "Enter" && handleRegister()}
                 />
               </div>
@@ -253,71 +223,6 @@ export default function Login({ onLogin }) {
             </div>
             <p className="login-switch">
               Already have an account?
-              <button onClick={() => reset("login")} className="switch-btn">
-                Sign in
-              </button>
-            </p>
-          </>
-        )}
-
-        {/* ── Verify Notice View ── */}
-        {view === "verify-notice" && (
-          <>
-            <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>📧</div>
-              <h1 className="login-title" style={{ fontSize: 22 }}>
-                Check your email
-              </h1>
-              <p className="login-sub" style={{ marginBottom: 0 }}>
-                We sent a verification link to{" "}
-                <strong style={{ color: "var(--text)" }}>
-                  {form.email || "your email"}
-                </strong>
-                . Click the link to activate your account.
-              </p>
-            </div>
-
-            <div
-              style={{
-                background: "var(--surface-2)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-md)",
-                padding: "14px 16px",
-                fontSize: 13,
-                color: "var(--text-muted)",
-                lineHeight: 1.6,
-              }}
-            >
-              💡 Check your spam folder if you don't see it within a minute.
-            </div>
-
-            {error && <p className="login-error">{error}</p>}
-            {success && (
-              <p
-                style={{
-                  fontSize: 13,
-                  color: "var(--green)",
-                  background: "rgba(34,197,94,0.08)",
-                  border: "1px solid rgba(34,197,94,0.2)",
-                  borderRadius: "var(--radius-sm)",
-                  padding: "10px 14px",
-                }}
-              >
-                {success}
-              </p>
-            )}
-
-            <button
-              onClick={handleResend}
-              className={`btn-primary login-btn ${loading ? "loading" : ""}`}
-              disabled={loading}
-              style={{ marginTop: 4 }}
-            >
-              {loading ? "Sending..." : "Resend Verification Email"}
-            </button>
-
-            <p className="login-switch">
-              Already verified?
               <button onClick={() => reset("login")} className="switch-btn">
                 Sign in
               </button>
