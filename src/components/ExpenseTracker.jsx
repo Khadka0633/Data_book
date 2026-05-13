@@ -650,6 +650,360 @@ function EditTransferForm({ entry, accounts, onSave, onDelete, onClose }) {
   );
 }
 
+
+function TransferPage({ accounts, userId, today, entries = [], onTransferDone, onClose }) {
+  const [form, setForm] = useState({
+    fromId: accounts[0]?.id || "",
+    toId:   accounts[1]?.id || accounts[0]?.id || "",
+    amount: "",
+    note:   "",
+    date:   today,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState("");
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker,   setShowToPicker]   = useState(false);
+  const [suggestions,     setSuggestions]     = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const handleNoteChange = (value) => {
+    setForm(f => ({ ...f, note: value }));
+    if (value.trim().length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
+    const seen = new Set();
+    const matches = entries
+      .filter(e => Boolean(e.isTransfer) && e.note && e.note.toLowerCase().includes(value.toLowerCase()) && !seen.has(e.note) && seen.add(e.note))
+      .slice(0, 5)
+      .map(e => e.note.replace(/Transfer (to|from) [^:]+: ?/i, "").trim())
+      .filter(n => n.length > 0);
+    setSuggestions([...new Set(matches)]);
+    setShowSuggestions(matches.length > 0);
+  };
+
+  const fromAcc = accounts.find(a => a.id === form.fromId);
+  const toAcc   = accounts.find(a => a.id === form.toId);
+
+  const handleTransfer = async () => {
+    setError("");
+    if (!form.amount || isNaN(form.amount) || +form.amount <= 0) return setError("Enter a valid amount.");
+    if (form.fromId === form.toId) return setError("Source and destination must be different.");
+    setSaving(true);
+    try {
+      const debit = await pb.collection("entries").create({
+        userId, type: "expense", amount: +form.amount, category: "Transfer",
+        note: form.note ? `Transfer to ${toAcc?.name}: ${form.note}` : `Transfer to ${toAcc?.name}`,
+        date: form.date, accountId: form.fromId, isTransfer: true,
+      });
+      const credit = await pb.collection("entries").create({
+        userId, type: "income", amount: +form.amount, category: "Transfer",
+        note: form.note ? `Transfer from ${fromAcc?.name}: ${form.note}` : `Transfer from ${fromAcc?.name}`,
+        date: form.date, accountId: form.toId, isTransfer: true,
+      });
+      onTransferDone([debit, credit]);
+    } catch (err) {
+      setError("Transfer failed. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="page" style={{ padding: 0, gap: 0, maxWidth: "100%", background: "var(--bg)", minHeight: "100vh" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text)", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>‹ Back</button>
+        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>Transfer</span>
+        <div style={{ width: 60 }} />
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "20px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ background: (fromAcc?.color || "#6366f1") + "22", border: `1px solid ${fromAcc?.color || "#6366f1"}44`, borderRadius: "var(--radius-sm)", padding: "8px 14px", fontSize: 13, fontWeight: 600, color: fromAcc?.color || "var(--accent)" }}>
+          {fromAcc?.icon} {fromAcc?.name}
+        </div>
+        <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 18 }}>→</span>
+        <div style={{ background: (toAcc?.color || "#6366f1") + "22", border: `1px solid ${toAcc?.color || "#6366f1"}44`, borderRadius: "var(--radius-sm)", padding: "8px 14px", fontSize: 13, fontWeight: 600, color: toAcc?.color || "var(--accent)" }}>
+          {toAcc?.icon} {toAcc?.name}
+        </div>
+      </div>
+
+      <div style={{ padding: "0 20px" }}>
+        {/* Amount */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)" }}>
+          <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Amount</span>
+          <input type="number" placeholder="0" value={form.amount}
+            onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} autoFocus
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 16, color: "var(--text)", fontFamily: "inherit", textAlign: "right" }} />
+        </div>
+
+        {/* Date */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer", position: "relative" }}
+          onClick={() => document.getElementById('transfer-date-input').showPicker?.()}>
+          <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Date</span>
+          <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>
+            {new Date(form.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+          </span>
+          <input id="transfer-date-input" type="date" value={form.date}
+            onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+            style={{ position: "absolute", opacity: 0, width: "100%", height: "100%", top: 0, left: 0, cursor: "pointer" }} />
+        </div>
+
+        {/* From */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer" }}
+          onClick={() => setShowFromPicker(true)}>
+          <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>From</span>
+          <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>{fromAcc?.icon} {fromAcc?.name}</span>
+          <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
+        </div>
+
+        {/* To */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer" }}
+          onClick={() => setShowToPicker(true)}>
+          <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>To</span>
+          <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>{toAcc?.icon} {toAcc?.name}</span>
+          <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
+        </div>
+
+        {/* Note */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", position: "relative" }}>
+          <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Note</span>
+          <input type="text" placeholder="Add a note..." value={form.note}
+            onChange={e => handleNoteChange(e.target.value)}
+            onFocus={() => setShowSuggestions(suggestions.length > 0)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 15, color: "var(--text)", fontFamily: "inherit", textAlign: "right" }} />
+          {showSuggestions && (
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.3)", marginTop: 4 }}>
+              {suggestions.map((s, i) => (
+                <button key={i} onMouseDown={() => { setForm(f => ({ ...f, note: s })); setShowSuggestions(false); }}
+                  style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 13, color: "var(--text)", background: "transparent", border: "none", cursor: "pointer", borderBottom: i < suggestions.length - 1 ? "1px solid var(--border)" : "none" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >{s}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {error && <p style={{ fontSize: 13, color: "var(--red)", padding: "10px 0" }}>{error}</p>}
+
+        <div style={{ paddingTop: 24 }}>
+          <button onClick={handleTransfer} disabled={saving}
+            style={{ width: "100%", padding: "14px", borderRadius: "var(--radius-md)", background: "var(--accent)", color: "#fff", border: "none", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+            {saving ? "Transferring..." : `Transfer${form.amount ? ` रु${form.amount}` : ""}`}
+          </button>
+        </div>
+      </div>
+
+      {/* From Picker */}
+      {showFromPicker && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
+          onClick={() => setShowFromPicker(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", maxHeight: "70vh", overflowY: "auto" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)", margin: "0 auto 16px" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>From Account</span>
+              <button onClick={() => setShowFromPicker(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 18, cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "var(--border)" }}>
+              {accounts.map(a => (
+                <button key={a.id} onClick={() => { setForm(f => ({ ...f, fromId: a.id })); setShowFromPicker(false); }}
+                  style={{ padding: "18px 8px", fontSize: 14, fontWeight: 500, cursor: "pointer", border: "none", background: form.fromId === a.id ? "rgba(99,102,241,0.15)" : "var(--surface-2)", color: form.fromId === a.id ? "var(--accent)" : "var(--text)", textAlign: "center" }}>
+                  {a.icon} {a.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* To Picker */}
+      {showToPicker && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
+          onClick={() => setShowToPicker(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", maxHeight: "70vh", overflowY: "auto" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)", margin: "0 auto 16px" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>To Account</span>
+              <button onClick={() => setShowToPicker(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 18, cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "var(--border)" }}>
+              {accounts.map(a => (
+                <button key={a.id} onClick={() => { setForm(f => ({ ...f, toId: a.id })); setShowToPicker(false); }}
+                  style={{ padding: "18px 8px", fontSize: 14, fontWeight: 500, cursor: "pointer", border: "none", background: form.toId === a.id ? "rgba(99,102,241,0.15)" : "var(--surface-2)", color: form.toId === a.id ? "var(--accent)" : "var(--text)", textAlign: "center" }}>
+                  {a.icon} {a.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditTransferPage({ entry, accounts, entries, onSave, onDelete, onClose }) {
+  const fromAcc = accounts.find(a => a.id === entry.accountId);
+  const toAcc   = accounts.find(a => a.id === entry._transferTo?.accountId);
+  const [amount, setAmount] = useState(String(entry.amount));
+  const [note,   setNote]   = useState(
+    entry.note?.replace(`Transfer to ${toAcc?.name}: `, "").replace(`Transfer to ${toAcc?.name}`, "") || ""
+  );
+  const [date,        setDate]        = useState(entry.date);
+  const [saving,      setSaving]      = useState(false);
+  const [confirmDel,  setConfirmDel]  = useState(false);
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker,   setShowToPicker]   = useState(false);
+  const [fromId, setFromId] = useState(entry.accountId);
+  const [toId,   setToId]   = useState(entry._transferTo?.accountId);
+
+  const currentFrom = accounts.find(a => a.id === fromId);
+  const currentTo   = accounts.find(a => a.id === toId);
+
+  const handleSave = async () => {
+    if (!amount || isNaN(amount) || +amount <= 0) return;
+    setSaving(true);
+    await onSave(+amount, note, date);
+    setSaving(false);
+  };
+
+  return (
+    <div className="page" style={{ padding: 0, gap: 0, maxWidth: "100%", background: "var(--bg)", minHeight: "100vh" }}>
+      
+      {/* Top bar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text)", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>‹ Back</button>
+        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>Edit Transfer</span>
+        <div style={{ width: 60 }} />
+      </div>
+
+      {/* Preview */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "20px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ background: (currentFrom?.color || "#6366f1") + "22", border: `1px solid ${currentFrom?.color || "#6366f1"}44`, borderRadius: "var(--radius-sm)", padding: "8px 14px", fontSize: 13, fontWeight: 600, color: currentFrom?.color || "var(--accent)" }}>
+          {currentFrom?.icon} {currentFrom?.name}
+        </div>
+        <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 18 }}>→</span>
+        <div style={{ background: (currentTo?.color || "#6366f1") + "22", border: `1px solid ${currentTo?.color || "#6366f1"}44`, borderRadius: "var(--radius-sm)", padding: "8px 14px", fontSize: 13, fontWeight: 600, color: currentTo?.color || "var(--accent)" }}>
+          {currentTo?.icon} {currentTo?.name}
+        </div>
+      </div>
+
+      <div style={{ padding: "0 20px" }}>
+
+        {/* Amount */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)" }}>
+          <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Amount</span>
+          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} autoFocus
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 16, color: "var(--text)", fontFamily: "inherit", textAlign: "right" }} />
+        </div>
+
+        {/* Date */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer", position: "relative" }}
+          onClick={() => document.getElementById('edit-transfer-date').showPicker?.()}>
+          <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Date</span>
+          <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>
+            {new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+          </span>
+          <input id="edit-transfer-date" type="date" value={date} onChange={e => setDate(e.target.value)}
+            style={{ position: "absolute", opacity: 0, width: "100%", height: "100%", top: 0, left: 0, cursor: "pointer" }} />
+        </div>
+
+        {/* From */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer" }}
+          onClick={() => setShowFromPicker(true)}>
+          <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>From</span>
+          <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>{currentFrom?.icon} {currentFrom?.name}</span>
+          <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
+        </div>
+
+        {/* To */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer" }}
+          onClick={() => setShowToPicker(true)}>
+          <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>To</span>
+          <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>{currentTo?.icon} {currentTo?.name}</span>
+          <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
+        </div>
+
+        {/* Note */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)" }}>
+          <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Note</span>
+          <input type="text" placeholder="Add a note..." value={note} onChange={e => setNote(e.target.value)}
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 15, color: "var(--text)", fontFamily: "inherit", textAlign: "right" }} />
+        </div>
+
+        {/* Save */}
+        <div style={{ paddingTop: 24, display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={handleSave} disabled={saving}
+            style={{ width: "100%", padding: "14px", borderRadius: "var(--radius-md)", background: "var(--accent)", color: "#fff", border: "none", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+          {confirmDel
+            ? <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={onDelete} style={{ flex: 1, padding: "12px", borderRadius: "var(--radius-md)", background: "rgba(239,68,68,0.12)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                  Confirm Delete Both
+                </button>
+                <button onClick={() => setConfirmDel(false)} style={{ padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--surface-2)", color: "var(--text-muted)", border: "1px solid var(--border)", fontSize: 14, cursor: "pointer" }}>
+                  Cancel
+                </button>
+              </div>
+            : <button onClick={() => setConfirmDel(true)}
+                style={{ width: "100%", padding: "12px", borderRadius: "var(--radius-md)", background: "transparent", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                🗑 Delete Transfer
+              </button>
+          }
+        </div>
+      </div>
+
+      {/* From Picker */}
+      {showFromPicker && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
+          onClick={() => setShowFromPicker(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", maxHeight: "70vh", overflowY: "auto" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)", margin: "0 auto 16px" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>From Account</span>
+              <button onClick={() => setShowFromPicker(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 18, cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "var(--border)" }}>
+              {accounts.map(a => (
+                <button key={a.id} onClick={() => { setFromId(a.id); setShowFromPicker(false); }}
+                  style={{ padding: "18px 8px", fontSize: 14, fontWeight: 500, cursor: "pointer", border: "none", background: fromId === a.id ? "rgba(99,102,241,0.15)" : "var(--surface-2)", color: fromId === a.id ? "var(--accent)" : "var(--text)", textAlign: "center" }}>
+                  {a.icon} {a.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* To Picker */}
+      {showToPicker && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
+          onClick={() => setShowToPicker(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", maxHeight: "70vh", overflowY: "auto" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)", margin: "0 auto 16px" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>To Account</span>
+              <button onClick={() => setShowToPicker(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 18, cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "var(--border)" }}>
+              {accounts.map(a => (
+                <button key={a.id} onClick={() => { setToId(a.id); setShowToPicker(false); }}
+                  style={{ padding: "18px 8px", fontSize: 14, fontWeight: 500, cursor: "pointer", border: "none", background: toId === a.id ? "rgba(99,102,241,0.15)" : "var(--surface-2)", color: toId === a.id ? "var(--accent)" : "var(--text)", textAlign: "center" }}>
+                  {a.icon} {a.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+
+
+
+
 export default function ExpenseTracker({
   userId,
   accounts,
@@ -681,6 +1035,7 @@ export default function ExpenseTracker({
   const { suggestions, showSuggestions, setShowSuggestions } =
     useNoteSuggestions(entries, form);
   const [editTransfer, setEditTransfer] = useState(null);
+  const [showTransferPage, setShowTransferPage] = useState(false);
 
   // ── AI auto-categorization state ──────────────────────────────
   const [showAiCatBadge, setShowAiCatBadge] = useState(false);
@@ -936,6 +1291,59 @@ export default function ExpenseTracker({
 
   if (loading) return <LoadingScreen />;
 
+
+if (editTransfer) {
+  return (
+    <EditTransferPage
+      entry={editTransfer}
+      accounts={accounts}
+      entries={entries}
+      onSave={async (amount, note, date) => {
+        await pb.collection("entries").update(editTransfer.id, {
+          amount, note: `Transfer to ${accounts.find(a => a.id === editTransfer._transferTo?.accountId)?.name}: ${note}`, date,
+        });
+        await pb.collection("entries").update(editTransfer._transferTo.id, {
+          amount, note: `Transfer from ${accounts.find(a => a.id === editTransfer.accountId)?.name}: ${note}`, date,
+        });
+        onEntriesChange(entries.map(e => {
+          if (e.id === editTransfer.id) return { ...e, amount, note, date };
+          if (e.id === editTransfer._transferTo.id) return { ...e, amount, note, date };
+          return e;
+        }));
+        setEditTransfer(null);
+      }}
+      onDelete={async () => {
+        await pb.collection("entries").delete(editTransfer.id);
+        await pb.collection("entries").delete(editTransfer._transferTo.id);
+        onEntriesChange(entries.filter(e => e.id !== editTransfer.id && e.id !== editTransfer._transferTo.id));
+        setEditTransfer(null);
+      }}
+      onClose={() => setEditTransfer(null)}
+    />
+  );
+}
+
+
+  if (showTransferPage) {
+  return (
+    <TransferPage
+      accounts={accounts}
+      userId={userId}
+      today={today}
+      entries={entries}
+      onTransferDone={(newEntries) => {
+        onEntriesChange([...newEntries, ...entries]);
+        setShowTransferPage(false);
+      }}
+      onClose={() => setShowTransferPage(false)}
+    />
+  );
+}
+
+
+
+
+
   if (showForm) {
     return (
       <div
@@ -1019,7 +1427,7 @@ export default function ExpenseTracker({
           <button
             onClick={() => {
               closeForm();
-              setShowTransfer(true);
+              setShowTransferPage(true);
             }}
             style={{
               flex: 1,
@@ -1078,21 +1486,59 @@ export default function ExpenseTracker({
             />
           </div>
 
-        {/* Date */}
-<div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer", position: "relative" }}
-  onClick={() => document.getElementById('date-input').showPicker?.()}>
-  <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Date</span>
-  <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>
-    {new Date(form.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
-  </span>
-  <input
-    id="date-input"
-    type="date"
-    value={form.date}
-    onChange={e => setForm({ ...form, date: e.target.value })}
-    style={{ position: "absolute", opacity: 0, width: "100%", height: "100%", top: 0, left: 0, cursor: "pointer" }}
-  />
-</div>
+          {/* Date */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              padding: "18px 0",
+              borderBottom: "1px solid var(--border)",
+              cursor: "pointer",
+              position: "relative",
+            }}
+            onClick={() => document.getElementById("date-input").showPicker?.()}
+          >
+            <span
+              style={{
+                fontSize: 15,
+                color: "var(--text-muted)",
+                width: 90,
+                flexShrink: 0,
+              }}
+            >
+              Date
+            </span>
+            <span
+              style={{
+                flex: 1,
+                fontSize: 15,
+                color: "var(--text)",
+                textAlign: "right",
+              }}
+            >
+              {new Date(form.date + "T00:00:00").toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </span>
+            <input
+              id="date-input"
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              style={{
+                position: "absolute",
+                opacity: 0,
+                width: "100%",
+                height: "100%",
+                top: 0,
+                left: 0,
+                cursor: "pointer",
+              }}
+            />
+          </div>
 
           {/* Category */}
           <div
@@ -1310,27 +1756,64 @@ export default function ExpenseTracker({
         </div>
 
         {/* ── Save button ── */}
-        
 
-
-            <div style={{ paddingTop: 24, display: "flex", flexDirection: "column", gap: 10 }}>
-          <button onClick={addEntry} disabled={saving}
-            style={{ width: "100%", padding: "14px", borderRadius: "var(--radius-md)", background: form.type === "expense" ? "var(--red)" : form.type === "income" ? "var(--green)" : "var(--accent)", color: "#fff", border: "none", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
-            {saving ? "Saving..." : editEntry ? "Save Changes" : `Add ${form.type === "expense" ? "Expense" : "Income"}`}
+        <div
+          style={{
+            paddingTop: 24,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <button
+            onClick={addEntry}
+            disabled={saving}
+            style={{
+              width: "100%",
+              padding: "14px",
+              borderRadius: "var(--radius-md)",
+              background:
+                form.type === "expense"
+                  ? "var(--red)"
+                  : form.type === "income"
+                    ? "var(--green)"
+                    : "var(--accent)",
+              color: "#fff",
+              border: "none",
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {saving
+              ? "Saving..."
+              : editEntry
+                ? "Save Changes"
+                : `Add ${form.type === "expense" ? "Expense" : "Income"}`}
           </button>
           {editEntry && (
-            <button onClick={async () => { await pb.collection("entries").delete(editEntry); onEntriesChange(entries.filter(e => e.id !== editEntry)); closeForm(); }}
-              style={{ width: "100%", padding: "12px", borderRadius: "var(--radius-md)", background: "transparent", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+            <button
+              onClick={async () => {
+                await pb.collection("entries").delete(editEntry);
+                onEntriesChange(entries.filter((e) => e.id !== editEntry));
+                closeForm();
+              }}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: "var(--radius-md)",
+                background: "transparent",
+                color: "var(--red)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
               🗑 Delete
             </button>
           )}
         </div>
-
-
-
-
-
-        
 
         {catModal && (
           <CategoryManager
@@ -1575,73 +2058,7 @@ export default function ExpenseTracker({
 
   return (
     <div className="page" style={{ padding: "16px", gap: 0 }}>
-      {editTransfer && (
-        <div
-          className="modal-overlay"
-          onClick={() => setEditTransfer(null)}
-          style={{ zIndex: 100 }}
-        >
-          <div
-            className="modal-card"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: 420, width: "100%" }}
-          >
-            <div className="modal-header">
-              <h3 className="modal-title">↔ Edit Transfer</h3>
-              <button
-                className="modal-close"
-                onClick={() => setEditTransfer(null)}
-              >
-                ✕
-              </button>
-            </div>
-            <EditTransferForm
-              entry={editTransfer}
-              accounts={accounts}
-              onSave={async (amount, note, date) => {
-                // update both entries
-                await pb.collection("entries").update(editTransfer.id, {
-                  amount,
-                  note: `Transfer to ${accounts.find((a) => a.id === editTransfer._transferTo?.accountId)?.name}: ${note}`,
-                  date,
-                });
-                await pb
-                  .collection("entries")
-                  .update(editTransfer._transferTo.id, {
-                    amount,
-                    note: `Transfer from ${accounts.find((a) => a.id === editTransfer.accountId)?.name}: ${note}`,
-                    date,
-                  });
-                onEntriesChange(
-                  entries.map((e) => {
-                    if (e.id === editTransfer.id)
-                      return { ...e, amount, note, date };
-                    if (e.id === editTransfer._transferTo.id)
-                      return { ...e, amount, note, date };
-                    return e;
-                  }),
-                );
-                setEditTransfer(null);
-              }}
-              onDelete={async () => {
-                await pb.collection("entries").delete(editTransfer.id);
-                await pb
-                  .collection("entries")
-                  .delete(editTransfer._transferTo.id);
-                onEntriesChange(
-                  entries.filter(
-                    (e) =>
-                      e.id !== editTransfer.id &&
-                      e.id !== editTransfer._transferTo.id,
-                  ),
-                );
-                setEditTransfer(null);
-              }}
-              onClose={() => setEditTransfer(null)}
-            />
-          </div>
-        </div>
-      )}
+     
 
       {showTransfer && (
         <Transfermodal

@@ -384,13 +384,14 @@ function EntryForm({
 
 
 function AccountDetailPage({
-  account, entries, userId, toNPR, format, accounts, onBack, onEntriesChange,
+  account, entries, userId, toNPR, format, accounts, onBack, onEntriesChange, onAccountsChange,
 }) {
   const [localEntries, setLocalEntries] = useState(entries);
   const [mode, setMode] = useState("list"); // "list" | "add" | "edit"
   const [editing, setEditing] = useState(null);
   const [expCats, setExpCats] = useState([]);
   const [incCats, setIncCats] = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => { setLocalEntries(entries); }, [entries]);
 
@@ -453,6 +454,10 @@ function AccountDetailPage({
   if (mode === "add" || mode === "edit") {
     return (
       <div className="page" style={{ padding: 16, gap: 0 }}>
+
+
+
+
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button
@@ -465,6 +470,10 @@ function AccountDetailPage({
             {mode === "add" ? "Add Transaction" : "Edit Transaction"}
           </h2>
         </div>
+
+
+
+        
         <EntryForm
           account={account}
           entry={mode === "edit" ? editing : undefined}
@@ -482,29 +491,101 @@ function AccountDetailPage({
   return (
     <div className="page" style={{ padding: 16, gap: 0 }}>
 
-      {/* Top nav */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+  {/* Top nav */}
+<div style={{ marginBottom: 20 }}>
+  
+  {/* Row 1: Back + Delete */}
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+    <button
+      onClick={onBack}
+      style={{
+        background: "var(--surface-2)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-sm)",
+        padding: "7px 14px",
+        fontSize: 14,
+        color: "var(--text)",
+        cursor: "pointer",
+      }}
+    >
+      ← Accounts
+    </button>
+
+    {confirmDelete ? (
+      <div style={{ display: "flex", gap: 6 }}>
         <button
-          onClick={onBack}
-          style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "7px 14px", fontSize: 14, color: "var(--text)", cursor: "pointer" }}
+          onClick={async () => {
+            const linked = entries.filter(e => e.accountId === account.id);
+            await Promise.all(linked.map(e => pb.collection("entries").delete(e.id)));
+            await pb.collection("accounts").delete(account.id);
+            onEntriesChange(entries.filter(e => e.accountId !== account.id));
+            onAccountsChange(accounts.filter(a => a.id !== account.id));
+            onBack();
+          }}
+          style={{
+            background: "rgba(239,68,68,0.12)",
+            color: "var(--red)",
+            border: "1px solid rgba(239,68,68,0.3)",
+            borderRadius: "var(--radius-sm)",
+            padding: "7px 12px",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
         >
-          ← Accounts
+          ✓ Confirm Delete
         </button>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 26 }}>{account.icon}</span>
-          <div>
-            <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "var(--text)" }}>
-              {account.name}
-            </h2>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <p style={{ fontSize: 12, color: account.color, textTransform: "capitalize" }}>{account.group}</p>
-              <span style={{ fontSize: 11, background: "rgba(99,102,241,0.12)", color: "var(--accent)", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 99, padding: "1px 7px", fontWeight: 600 }}>
-                {currMeta.flag} {currency}
-              </span>
-            </div>
-          </div>
-        </div>
+        <button
+          onClick={() => setConfirmDelete(false)}
+          style={{
+            background: "var(--surface-2)",
+            color: "var(--text-muted)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            padding: "7px 12px",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
       </div>
+    ) : (
+      <button
+        onClick={() => setConfirmDelete(true)}
+        style={{
+          background: "rgba(239,68,68,0.08)",
+          color: "var(--red)",
+          border: "1px solid rgba(239,68,68,0.2)",
+          borderRadius: "var(--radius-sm)",
+          padding: "7px 12px",
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        🗑 Delete
+      </button>
+    )}
+  </div>
+
+  {/* Row 2: Account info */}
+  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <div>
+      <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "var(--text)" }}>
+        {account.name}
+      </h2>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <p style={{ fontSize: 12, color: account.color, textTransform: "capitalize" }}>{account.group}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
 
       {/* Stats bar */}
       <div style={{ display: "flex", gap: 0, marginBottom: 12, background: "var(--surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", overflow: "hidden" }}>
@@ -897,6 +978,7 @@ export default function Account({
         accounts={accounts}
         onBack={() => setSelectedAcc(null)}
         onEntriesChange={onEntriesChange}
+        onAccountsChange={onAccountsChange}
       />
     );
   }
@@ -1048,107 +1130,101 @@ export default function Account({
         </div>
       )}
 
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 14,
-        }}
-      >
-        <div>
-          <h1
-            style={{
-              fontFamily: "'Syne', sans-serif",
-              fontSize: 22,
-              fontWeight: 800,
-              color: "var(--text)",
-              letterSpacing: -0.5,
-            }}
-          >
-            Accounts
-          </h1>
-          <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
-        </div>
-      </div>
+{/* Header */}
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14, gap: 8 }}>
+  <div>
+    <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: "var(--text)", letterSpacing: -0.5 }}>
+      Accounts
+    </h1>
+    <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
+      {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+    </p>
+  </div>
+  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginTop: 4 }}>
+    <button
+      onClick={() => setShowAddAcc(true)}
+      style={{
+        background: "var(--accent)",
+        color: "#fff",
+        border: "none",
+        borderRadius: "var(--radius-sm)",
+        padding: "6px 14px",
+        fontSize: 13,
+        fontWeight: 700,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      + Add
+    </button>
+  </div>
+</div>
 
-      {/* Net Worth bar */}
-      <div
-        style={{
-          display: "flex",
-          gap: 0,
-          marginBottom: 16,
-          background: "var(--surface)",
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--border)",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ flex: 1, padding: "12px 10px", textAlign: "center" }}>
-          <p
-            style={{
-              fontSize: 10,
-              color: "var(--text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-              marginBottom: 3,
-            }}
-          >
-            Net Worth (NPR)
+            
+    {/* Assets / Liabilities / Net Worth bar */}
+{(() => {
+  const assets = accounts
+    .filter(a => a.group !== "loan")
+    .reduce((s, a) => {
+      const bal = accountBalances[a.id] || 0;
+      return s + toNPR(Math.max(bal, 0), a.currency || "NPR");
+    }, 0);
+
+  const liabilities = accounts
+    .filter(a => a.group === "loan")
+    .reduce((s, a) => {
+      const bal = accountBalances[a.id] || 0;
+      return s + toNPR(Math.abs(Math.min(bal, 0)), a.currency || "NPR");
+    }, 0);
+
+  const net = assets - liabilities;
+
+  return (
+    <div style={{
+      display: "flex",
+      gap: 0,
+      marginBottom: 16,
+      background: "var(--surface)",
+      borderRadius: "var(--radius-md)",
+      border: "1px solid var(--border)",
+      overflow: "hidden",
+    }}>
+      {[
+        { label: "Assets", value: assets, color: "var(--green)" },
+        { label: "Liabilities", value: liabilities, color: "var(--red)" },
+        { label: "Net Total", value: net, color: net >= 0 ? "var(--green)" : "var(--red)" },
+      ].map((s, i) => (
+        <div key={s.label} style={{
+          flex: 1,
+          padding: "12px 8px",
+          textAlign: "center",
+          borderRight: i < 2 ? "1px solid var(--border)" : "none",
+        }}>
+          <p style={{
+            fontSize: 10,
+            color: "var(--text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+            marginBottom: 3,
+          }}>
+            {s.label}
           </p>
-          <p
-            style={{
-              fontSize: 15,
-              fontWeight: 700,
-              color: grandTotal >= 0 ? "var(--green)" : "var(--red)",
-              fontFamily: "'Syne', sans-serif",
-            }}
-          >
-            {grandTotal >= 0 ? "+" : "−"}रु
-            {Math.abs(grandTotal).toLocaleString("en-US", {
-              maximumFractionDigits: 0,
-            })}
+          <p style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: s.color,
+            fontFamily: "'Syne', sans-serif",
+          }}>
+            {s.value >= 0 ? "+" : "−"}रु
+            {Math.abs(s.value).toLocaleString("en-US", { maximumFractionDigits: 0 })}
           </p>
-          {!rates && (
-            <p
-              style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}
-            >
-              Loading live rates…
-            </p>
-          )}
         </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            paddingRight: 12,
-          }}
-        >
-          <button
-            onClick={onShowTransfer}
-            style={{
-              background: "rgba(99,102,241,0.12)",
-              color: "var(--accent)",
-              border: "1px solid rgba(99,102,241,0.3)",
-              borderRadius: "var(--radius-sm)",
-              padding: "7px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            ↔ Transfer
-          </button>
-        </div>
-      </div>
+      ))}
+    </div>
+  );
+})()}
+
+
 
       {/* Account list */}
       {accounts.length === 0 ? (
@@ -1347,11 +1423,7 @@ export default function Account({
         </div>
       )}
 
-      {/* FAB */}
-      <style>{`.acc-fab{position:fixed;right:28px;bottom:32px;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;font-size:26px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(99,102,241,0.4);z-index:90;transition:transform .15s}.acc-fab:hover{transform:scale(1.08)}@media(max-width:768px){.acc-fab{bottom:76px;right:18px;width:48px;height:48px;font-size:24px}}`}</style>
-      <button className="acc-fab" onClick={() => setShowAddAcc(true)}>
-        +
-      </button>
+     
     </div>
   );
 }
