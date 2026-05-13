@@ -1310,64 +1310,27 @@ export default function ExpenseTracker({
         </div>
 
         {/* ── Save button ── */}
-        <div
-          style={{
-            padding: "24px 20px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-            marginTop: "auto",
-          }}
-        >
-          <button
-            onClick={addEntry}
-            disabled={saving}
-            style={{
-              width: "100%",
-              padding: "14px",
-              borderRadius: "var(--radius-md)",
-              background:
-                form.type === "expense"
-                  ? "var(--red)"
-                  : form.type === "income"
-                    ? "var(--green)"
-                    : "var(--accent)",
-              color: "#fff",
-              border: "none",
-              fontSize: 15,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            {saving
-              ? "Saving..."
-              : editEntry
-                ? "Save Changes"
-                : `Add ${form.type === "expense" ? "Expense" : "Income"}`}
+        
+
+
+            <div style={{ paddingTop: 24, display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={addEntry} disabled={saving}
+            style={{ width: "100%", padding: "14px", borderRadius: "var(--radius-md)", background: form.type === "expense" ? "var(--red)" : form.type === "income" ? "var(--green)" : "var(--accent)", color: "#fff", border: "none", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+            {saving ? "Saving..." : editEntry ? "Save Changes" : `Add ${form.type === "expense" ? "Expense" : "Income"}`}
           </button>
           {editEntry && (
-            <button
-              onClick={async () => {
-                await pb.collection("entries").delete(editEntry);
-                onEntriesChange(entries.filter((e) => e.id !== editEntry));
-                closeForm();
-              }}
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: "var(--radius-md)",
-                background: "transparent",
-                color: "var(--red)",
-                border: "1px solid rgba(239,68,68,0.3)",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
+            <button onClick={async () => { await pb.collection("entries").delete(editEntry); onEntriesChange(entries.filter(e => e.id !== editEntry)); closeForm(); }}
+              style={{ width: "100%", padding: "12px", borderRadius: "var(--radius-md)", background: "transparent", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
               🗑 Delete
             </button>
           )}
         </div>
+
+
+
+
+
+        
 
         {catModal && (
           <CategoryManager
