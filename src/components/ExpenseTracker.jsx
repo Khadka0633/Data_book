@@ -665,33 +665,22 @@ function TransferPage({ accounts, userId, today, entries = [], onTransferDone, o
   const [showToPicker,   setShowToPicker]   = useState(false);
 
 useEffect(() => {
-  const isOpen = showAccPicker || showCatPicker;
+  const isOpen = showFromPicker || showToPicker;
   const scrollEl = document.querySelector('.main-content');
   
   if (isOpen) {
-    if (scrollEl) {
-      scrollEl.style.overflow = 'hidden';
-    }
+    if (scrollEl) scrollEl.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.width = '100%';
   } else {
-    if (scrollEl) {
-      scrollEl.style.overflow = '';
-    }
+    if (scrollEl) scrollEl.style.overflow = '';
     document.body.style.overflow = '';
-    document.body.style.position = '';
-    document.body.style.width = '';
   }
 
   return () => {
     if (scrollEl) scrollEl.style.overflow = '';
     document.body.style.overflow = '';
-    document.body.style.position = '';
-    document.body.style.width = '';
   };
-}, [showAccPicker, showCatPicker]);
-
+}, [showFromPicker, showToPicker]);
 
 
 
