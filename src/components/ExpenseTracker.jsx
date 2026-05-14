@@ -794,9 +794,9 @@ function TransferPage({ accounts, userId, today, entries = [], onTransferDone, o
 
       {/* From Picker */}
       {showFromPicker && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
           onClick={() => setShowFromPicker(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", maxHeight: "70vh", overflowY: "auto" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))", maxHeight: "70vh", overflowY: "auto" }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)", margin: "0 auto 16px" }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>From Account</span>
@@ -816,9 +816,9 @@ function TransferPage({ accounts, userId, today, entries = [], onTransferDone, o
 
       {/* To Picker */}
       {showToPicker && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
           onClick={() => setShowToPicker(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", maxHeight: "70vh", overflowY: "auto" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))", maxHeight: "70vh", overflowY: "auto" }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)", margin: "0 auto 16px" }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>To Account</span>
@@ -953,9 +953,9 @@ function EditTransferPage({ entry, accounts, entries, onSave, onDelete, onClose 
 
       {/* From Picker */}
       {showFromPicker && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
           onClick={() => setShowFromPicker(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", maxHeight: "70vh", overflowY: "auto" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))", maxHeight: "70vh", overflowY: "auto" }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)", margin: "0 auto 16px" }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>From Account</span>
@@ -975,9 +975,9 @@ function EditTransferPage({ entry, accounts, entries, onSave, onDelete, onClose 
 
       {/* To Picker */}
       {showToPicker && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,0.5)" }}
           onClick={() => setShowToPicker(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", maxHeight: "70vh", overflowY: "auto" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "20px 16px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))", maxHeight: "70vh", overflowY: "auto" }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)", margin: "0 auto 16px" }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>To Account</span>
