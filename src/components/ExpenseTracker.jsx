@@ -352,7 +352,7 @@ function CategoryHistoryModal({
                           type === "expense" ? "var(--red)" : "var(--green)",
                       }}
                     >
-                      {type === "income" ? "+" : "−"}रु
+                      रु
                       {e.amount.toLocaleString()}
                     </span>
                   </div>
@@ -2177,7 +2177,7 @@ if (editTransfer) {
                 fontSize: 15,
                 fontWeight: 700,
                 color: s.color,
-                fontFamily: "'Syne', sans-serif",
+                
               }}
             >
               {s.value}
@@ -2310,12 +2310,12 @@ if (editTransfer) {
                   <div style={{ display: "flex", gap: 10, fontSize: 12 }}>
                     {dayIncome > 0 && (
                       <span style={{ color: "var(--green)", fontWeight: 600 }}>
-                        +रु{dayIncome.toLocaleString()}
+                        रु{dayIncome.toLocaleString()}
                       </span>
                     )}
                     {dayExpense > 0 && (
                       <span style={{ color: "var(--red)", fontWeight: 600 }}>
-                        −रु{dayExpense.toLocaleString()}
+                        रु{dayExpense.toLocaleString()}
                       </span>
                     )}
                   </div>
@@ -2495,7 +2495,7 @@ if (editTransfer) {
                           marginLeft: 8,
                         }}
                       >
-                        {e.type === "income" ? "+" : "−"}रु
+                        रु
                         {e.amount.toLocaleString()}
                       </span>
                     </div>
