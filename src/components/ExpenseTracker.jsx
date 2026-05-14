@@ -664,15 +664,23 @@ function TransferPage({ accounts, userId, today, entries = [], onTransferDone, o
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker,   setShowToPicker]   = useState(false);
 
-   useEffect(() => {
-    if (showFromPicker || showToPicker) {
-      document.body.classList.add("picker-open");
-    } else {
-      document.body.classList.remove("picker-open");
-    }
-    return () => document.body.classList.remove("picker-open");
-  }, [showFromPicker, showToPicker]);
-
+useEffect(() => {
+  const isOpen = showAccPicker || showCatPicker;
+  if (isOpen) {
+    const scrollY = window.scrollY;
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, scrollY);
+    };
+  }
+}, [showAccPicker, showCatPicker]);
 
 
 
@@ -867,13 +875,22 @@ function EditTransferPage({ entry, accounts, entries, onSave, onDelete, onClose 
   const [showToPicker,   setShowToPicker]   = useState(false);
 
  useEffect(() => {
-    if (showFromPicker || showToPicker) {
-      document.body.classList.add("picker-open");
-    } else {
-      document.body.classList.remove("picker-open");
-    }
-    return () => document.body.classList.remove("picker-open");
-  }, [showFromPicker, showToPicker]);
+  const isOpen = showAccPicker || showCatPicker;
+  if (isOpen) {
+    const scrollY = window.scrollY;
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, scrollY);
+    };
+  }
+}, [showAccPicker, showCatPicker]);
 
 
 
@@ -1105,14 +1122,23 @@ export default function ExpenseTracker({
   }, [accounts]);
 
 
-    useEffect(() => {
-    if (showAccPicker || showCatPicker) {
-      document.body.classList.add("picker-open");
-    } else {
-      document.body.classList.remove("picker-open");
-    }
-    return () => document.body.classList.remove("picker-open");
-  }, [showAccPicker, showCatPicker]);
+  useEffect(() => {
+  const isOpen = showAccPicker || showCatPicker;
+  if (isOpen) {
+    const scrollY = window.scrollY;
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, scrollY);
+    };
+  }
+}, [showAccPicker, showCatPicker]);
 
 
   // ── AI auto-categorization: trigger on note change ────────────
