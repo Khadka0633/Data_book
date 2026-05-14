@@ -2096,10 +2096,3 @@ option { background: var(--surface-2); color: var(--text); }
 
 
 
-.picker-open {
-  overflow: hidden;
-  position: fixed;
-  width: 100%;
-}
-
-
