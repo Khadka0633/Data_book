@@ -1831,7 +1831,7 @@ if (editTransfer) {
             style={{
               position: "fixed",
               inset: 0,
-              zIndex: 200,
+              zIndex: 1000,
               display: "flex",
               flexDirection: "column",
               justifyContent: "flex-end",
@@ -1845,6 +1845,7 @@ if (editTransfer) {
                 background: "var(--surface)",
                 borderRadius: "20px 20px 0 0",
                 padding: "20px 16px",
+                paddingBottom: "calc(16px + env(safe-area-inset-bottom))",
                 maxHeight: "70vh",
                 overflowY: "auto",
               }}
@@ -1936,7 +1937,7 @@ if (editTransfer) {
             style={{
               position: "fixed",
               inset: 0,
-              zIndex: 200,
+              zIndex: 1000,
               display: "flex",
               flexDirection: "column",
               justifyContent: "flex-end",
@@ -1950,6 +1951,7 @@ if (editTransfer) {
                 background: "var(--surface)",
                 borderRadius: "20px 20px 0 0",
                 padding: "20px 16px",
+                paddingBottom: "calc(16px + env(safe-area-inset-bottom))",
                 maxHeight: "70vh",
                 overflowY: "auto",
               }}
