@@ -666,20 +666,30 @@ function TransferPage({ accounts, userId, today, entries = [], onTransferDone, o
 
 useEffect(() => {
   const isOpen = showAccPicker || showCatPicker;
+  const scrollEl = document.querySelector('.main-content');
+  
   if (isOpen) {
-    const scrollY = window.scrollY;
+    if (scrollEl) {
+      scrollEl.style.overflow = 'hidden';
+    }
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
     document.body.style.width = '100%';
-    return () => {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      window.scrollTo(0, scrollY);
-    };
+  } else {
+    if (scrollEl) {
+      scrollEl.style.overflow = '';
+    }
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
   }
+
+  return () => {
+    if (scrollEl) scrollEl.style.overflow = '';
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+  };
 }, [showAccPicker, showCatPicker]);
 
 
@@ -874,22 +884,32 @@ function EditTransferPage({ entry, accounts, entries, onSave, onDelete, onClose 
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker,   setShowToPicker]   = useState(false);
 
- useEffect(() => {
+useEffect(() => {
   const isOpen = showAccPicker || showCatPicker;
+  const scrollEl = document.querySelector('.main-content');
+  
   if (isOpen) {
-    const scrollY = window.scrollY;
+    if (scrollEl) {
+      scrollEl.style.overflow = 'hidden';
+    }
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
     document.body.style.width = '100%';
-    return () => {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      window.scrollTo(0, scrollY);
-    };
+  } else {
+    if (scrollEl) {
+      scrollEl.style.overflow = '';
+    }
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
   }
+
+  return () => {
+    if (scrollEl) scrollEl.style.overflow = '';
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+  };
 }, [showAccPicker, showCatPicker]);
 
 
@@ -1122,24 +1142,33 @@ export default function ExpenseTracker({
   }, [accounts]);
 
 
-  useEffect(() => {
+useEffect(() => {
   const isOpen = showAccPicker || showCatPicker;
+  const scrollEl = document.querySelector('.main-content');
+  
   if (isOpen) {
-    const scrollY = window.scrollY;
+    if (scrollEl) {
+      scrollEl.style.overflow = 'hidden';
+    }
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
     document.body.style.width = '100%';
-    return () => {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      window.scrollTo(0, scrollY);
-    };
+  } else {
+    if (scrollEl) {
+      scrollEl.style.overflow = '';
+    }
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
   }
-}, [showAccPicker, showCatPicker]);
 
+  return () => {
+    if (scrollEl) scrollEl.style.overflow = '';
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+  };
+}, [showAccPicker, showCatPicker]);
 
   // ── AI auto-categorization: trigger on note change ────────────
   useEffect(() => {
