@@ -2093,3 +2093,13 @@ option { background: var(--surface-2); color: var(--text); }
 .page .card > div > div {
   background: transparent !important;
 }
+
+
+
+.picker-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+

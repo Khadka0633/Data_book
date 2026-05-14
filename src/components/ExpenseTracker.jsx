@@ -663,6 +663,20 @@ function TransferPage({ accounts, userId, today, entries = [], onTransferDone, o
   const [error,  setError]  = useState("");
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker,   setShowToPicker]   = useState(false);
+
+   useEffect(() => {
+    if (showFromPicker || showToPicker) {
+      document.body.classList.add("picker-open");
+    } else {
+      document.body.classList.remove("picker-open");
+    }
+    return () => document.body.classList.remove("picker-open");
+  }, [showFromPicker, showToPicker]);
+
+
+
+
+
   const [suggestions,     setSuggestions]     = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -851,6 +865,19 @@ function EditTransferPage({ entry, accounts, entries, onSave, onDelete, onClose 
   const [confirmDel,  setConfirmDel]  = useState(false);
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker,   setShowToPicker]   = useState(false);
+
+ useEffect(() => {
+    if (showFromPicker || showToPicker) {
+      document.body.classList.add("picker-open");
+    } else {
+      document.body.classList.remove("picker-open");
+    }
+    return () => document.body.classList.remove("picker-open");
+  }, [showFromPicker, showToPicker]);
+
+
+
+
   const [fromId, setFromId] = useState(entry.accountId);
   const [toId,   setToId]   = useState(entry._transferTo?.accountId);
 
@@ -1076,6 +1103,17 @@ export default function ExpenseTracker({
     if (!form.accountId && accounts?.length)
       setForm((f) => ({ ...f, accountId: accounts[0].id }));
   }, [accounts]);
+
+
+    useEffect(() => {
+    if (showAccPicker || showCatPicker) {
+      document.body.classList.add("picker-open");
+    } else {
+      document.body.classList.remove("picker-open");
+    }
+    return () => document.body.classList.remove("picker-open");
+  }, [showAccPicker, showCatPicker]);
+
 
   // ── AI auto-categorization: trigger on note change ────────────
   useEffect(() => {
@@ -1838,6 +1876,7 @@ if (editTransfer) {
               background: "rgba(0,0,0,0.5)",
             }}
             onClick={() => setShowAccPicker(false)}
+            onTouchMove={(e) => e.preventDefault()}
           >
             <div
               onClick={(e) => e.stopPropagation()}
@@ -1945,6 +1984,7 @@ if (editTransfer) {
               background: "rgba(0,0,0,0.5)",
             }}
             onClick={() => setShowCatPicker(false)}
+            onTouchMove={(e) => e.preventDefault()} 
           >
             <div
               onClick={(e) => e.stopPropagation()}
