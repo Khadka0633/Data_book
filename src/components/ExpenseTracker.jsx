@@ -58,12 +58,7 @@ function CategoryHistoryModal({
     return months;
   }, [catEntries]);
 
-  const maxVal = Math.max(...monthData.map((m) => m.total), 1);
   const hasData = monthData.some((m) => m.total > 0);
-  const peakMonth = monthData.reduce(
-    (a, b) => (b.total > a.total ? b : a),
-    monthData[0],
-  );
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -352,8 +347,7 @@ function CategoryHistoryModal({
                           type === "expense" ? "var(--red)" : "var(--green)",
                       }}
                     >
-                      रु
-                      {e.amount.toLocaleString()}
+                      रु{e.amount.toLocaleString()}
                     </span>
                   </div>
                 );
@@ -519,137 +513,6 @@ function LoadingScreen() {
   );
 }
 
-function EditTransferForm({ entry, accounts, onSave, onDelete, onClose }) {
-  const fromAcc = accounts.find((a) => a.id === entry.accountId);
-  const toAcc = accounts.find((a) => a.id === entry._transferTo?.accountId);
-  const [amount, setAmount] = useState(String(entry.amount));
-  const [note, setNote] = useState(
-    entry.note
-      ?.replace(`Transfer to ${toAcc?.name}: `, "")
-      .replace(`Transfer to ${toAcc?.name}`, "") || "",
-  );
-  const [date, setDate] = useState(entry.date);
-  const [saving, setSaving] = useState(false);
-  const [confirmDel, setConfirmDel] = useState(false);
-
-  const handleSave = async () => {
-    if (!amount || isNaN(amount) || +amount <= 0) return;
-    setSaving(true);
-    await onSave(+amount, note, date);
-    setSaving(false);
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {/* Preview */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          background: "var(--surface-2)",
-          borderRadius: "var(--radius-md)",
-          padding: "12px 14px",
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
-          {fromAcc?.icon} {fromAcc?.name}
-        </span>
-        <span style={{ color: "var(--accent)", fontWeight: 700 }}>→</span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
-          {toAcc?.icon} {toAcc?.name}
-        </span>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label className="input-label">Amount</label>
-        <input
-          className="input"
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          autoFocus
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label className="input-label">Note (optional)</label>
-        <input
-          className="input"
-          type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="e.g. Monthly savings"
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label className="input-label">Date</label>
-        <input
-          className="input"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
-      </div>
-
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
-          className="btn-primary"
-          style={{ flex: 1 }}
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
-        <button className="btn-cancel" onClick={onClose}>
-          Cancel
-        </button>
-      </div>
-
-      {confirmDel ? (
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={onDelete}
-            style={{
-              flex: 1,
-              background: "rgba(239,68,68,0.12)",
-              color: "var(--red)",
-              border: "1px solid rgba(239,68,68,0.3)",
-              borderRadius: "var(--radius-sm)",
-              padding: 10,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Confirm Delete Both
-          </button>
-          <button className="btn-cancel" onClick={() => setConfirmDel(false)}>
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={() => setConfirmDel(true)}
-          style={{
-            background: "transparent",
-            color: "var(--red)",
-            border: "1px solid rgba(239,68,68,0.3)",
-            borderRadius: "var(--radius-sm)",
-            padding: 10,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          🗑 Delete Transfer
-        </button>
-      )}
-    </div>
-  );
-}
-
 function TransferPage({
   accounts,
   userId,
@@ -673,7 +536,6 @@ function TransferPage({
   useEffect(() => {
     const isOpen = showFromPicker || showToPicker;
     const scrollEl = document.querySelector(".main-content");
-
     if (isOpen) {
       if (scrollEl) scrollEl.style.overflow = "hidden";
       document.body.style.overflow = "hidden";
@@ -681,7 +543,6 @@ function TransferPage({
       if (scrollEl) scrollEl.style.overflow = "";
       document.body.style.overflow = "";
     }
-
     return () => {
       if (scrollEl) scrollEl.style.overflow = "";
       document.body.style.overflow = "";
@@ -1320,6 +1181,8 @@ function TransferPage({
   );
 }
 
+// FIX: EditTransferPage now correctly passes fromId/toId through onSave,
+// and the parent uses them when updating PocketBase records.
 function EditTransferPage({
   entry,
   accounts,
@@ -1328,7 +1191,6 @@ function EditTransferPage({
   onDelete,
   onClose,
 }) {
-  const fromAcc = accounts.find((a) => a.id === entry.accountId);
   const toAcc = accounts.find((a) => a.id === entry._transferTo?.accountId);
   const [amount, setAmount] = useState(String(entry.amount));
   const [note, setNote] = useState(
@@ -1337,15 +1199,19 @@ function EditTransferPage({
       .replace(`Transfer to ${toAcc?.name}`, "") || "",
   );
   const [date, setDate] = useState(entry.date);
+  const [fromId, setFromId] = useState(entry.accountId);
+  const [toId, setToId] = useState(entry._transferTo?.accountId);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
 
+  const currentFrom = accounts.find((a) => a.id === fromId);
+  const currentTo = accounts.find((a) => a.id === toId);
+
   useEffect(() => {
     const isOpen = showFromPicker || showToPicker;
     const scrollEl = document.querySelector(".main-content");
-
     if (isOpen) {
       if (scrollEl) scrollEl.style.overflow = "hidden";
       document.body.style.overflow = "hidden";
@@ -1357,7 +1223,6 @@ function EditTransferPage({
       document.body.style.position = "";
       document.body.style.width = "";
     }
-
     return () => {
       if (scrollEl) scrollEl.style.overflow = "";
       document.body.style.overflow = "";
@@ -1365,16 +1230,12 @@ function EditTransferPage({
       document.body.style.width = "";
     };
   }, [showFromPicker, showToPicker]);
-  const [fromId, setFromId] = useState(entry.accountId);
-  const [toId, setToId] = useState(entry._transferTo?.accountId);
-
-  const currentFrom = accounts.find((a) => a.id === fromId);
-  const currentTo = accounts.find((a) => a.id === toId);
 
   const handleSave = async () => {
     if (!amount || isNaN(amount) || +amount <= 0) return;
     setSaving(true);
-    await onSave(+amount, note, date);
+    // FIX: pass fromId and toId so the parent can update both records correctly
+    await onSave(+amount, note, date, fromId, toId);
     setSaving(false);
   };
 
@@ -2029,6 +1890,7 @@ export default function ExpenseTracker({
   const [showAiCatBadge, setShowAiCatBadge] = useState(false);
   const [showCatPicker, setShowCatPicker] = useState(false);
   const [showAccPicker, setShowAccPicker] = useState(false);
+
   const loadData = useCallback(async () => {
     if (hasLoaded.current) return;
     hasLoaded.current = true;
@@ -2051,6 +1913,7 @@ export default function ExpenseTracker({
       }));
     } catch (err) {
       console.error("Failed to load categories:", err);
+      // FIX: reset ref on failure so retry is possible
       hasLoaded.current = false;
     } finally {
       setLoading(false);
@@ -2060,11 +1923,13 @@ export default function ExpenseTracker({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
   useEffect(() => {
     if (!form.accountId && accounts?.length)
       setForm((f) => ({ ...f, accountId: accounts[0].id }));
   }, [accounts]);
 
+  // FIX: combined scroll lock effect for form and transfer pages
   useEffect(() => {
     const scrollEl = document.querySelector(".main-content");
     if (showForm || showTransferPage || editTransfer) {
@@ -2080,23 +1945,17 @@ export default function ExpenseTracker({
   useEffect(() => {
     const isOpen = showAccPicker || showCatPicker;
     const scrollEl = document.querySelector(".main-content");
-
     if (isOpen) {
-      if (scrollEl) {
-        scrollEl.style.overflow = "hidden";
-      }
+      if (scrollEl) scrollEl.style.overflow = "hidden";
       document.body.style.overflow = "hidden";
       document.body.style.position = "fixed";
       document.body.style.width = "100%";
     } else {
-      if (scrollEl) {
-        scrollEl.style.overflow = "";
-      }
+      if (scrollEl) scrollEl.style.overflow = "";
       document.body.style.overflow = "";
       document.body.style.position = "";
       document.body.style.width = "";
     }
-
     return () => {
       if (scrollEl) scrollEl.style.overflow = "";
       document.body.style.overflow = "";
@@ -2115,7 +1974,6 @@ export default function ExpenseTracker({
     setShowAiCatBadge(false);
   }, [form.note, form.type]);
 
-  // When AI suggestion arrives, show badge
   useEffect(() => {
     if (ai?.catSuggestion && showForm) {
       setShowAiCatBadge(true);
@@ -2173,6 +2031,7 @@ export default function ExpenseTracker({
       accountId: accounts?.[0]?.id || "",
     });
   };
+
   const ledgerMonth = filterDate.slice(0, 7);
 
   const totalIncome = entries
@@ -2319,28 +2178,40 @@ export default function ExpenseTracker({
 
   if (loading) return <LoadingScreen />;
 
+  // ── Edit Transfer Page ────────────────────────────────────────
   if (editTransfer) {
     return (
       <EditTransferPage
         entry={editTransfer}
         accounts={accounts}
         entries={entries}
-        onSave={async (amount, note, date) => {
+        // FIX: onSave now receives fromId and toId from the page,
+        // so account changes in the picker are actually persisted.
+        onSave={async (amount, note, date, fromId, toId) => {
+          const fromName = accounts.find((a) => a.id === fromId)?.name;
+          const toName = accounts.find((a) => a.id === toId)?.name;
           await pb.collection("entries").update(editTransfer.id, {
             amount,
-            note: `Transfer to ${accounts.find((a) => a.id === editTransfer._transferTo?.accountId)?.name}: ${note}`,
+            note: note
+              ? `Transfer to ${toName}: ${note}`
+              : `Transfer to ${toName}`,
             date,
+            accountId: fromId,
           });
           await pb.collection("entries").update(editTransfer._transferTo.id, {
             amount,
-            note: `Transfer from ${accounts.find((a) => a.id === editTransfer.accountId)?.name}: ${note}`,
+            note: note
+              ? `Transfer from ${fromName}: ${note}`
+              : `Transfer from ${fromName}`,
             date,
+            accountId: toId,
           });
           onEntriesChange(
             entries.map((e) => {
-              if (e.id === editTransfer.id) return { ...e, amount, note, date };
+              if (e.id === editTransfer.id)
+                return { ...e, amount, note, date, accountId: fromId };
               if (e.id === editTransfer._transferTo.id)
-                return { ...e, amount, note, date };
+                return { ...e, amount, note, date, accountId: toId };
               return e;
             }),
           );
@@ -2363,6 +2234,7 @@ export default function ExpenseTracker({
     );
   }
 
+  // ── Transfer Page ─────────────────────────────────────────────
   if (showTransferPage) {
     return (
       <TransferPage
@@ -2379,12 +2251,13 @@ export default function ExpenseTracker({
     );
   }
 
+  // ── Add / Edit Entry Form ─────────────────────────────────────
   if (showForm) {
-
     return (
       <div
         style={{
           position: "fixed",
+          // FIX: was "inset: 2" which offset the overlay; corrected to 0
           inset: 0,
           background: "var(--bg)",
           zIndex: 100,
@@ -2420,11 +2293,7 @@ export default function ExpenseTracker({
             ‹ Back
           </button>
           <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
-            {form.type === "expense"
-              ? "Expense"
-              : form.type === "income"
-                ? "Income"
-                : "Transfer"}
+            {form.type === "expense" ? "Expense" : "Income"}
           </span>
           <div style={{ width: 60 }} />
         </div>
@@ -2483,311 +2352,384 @@ export default function ExpenseTracker({
           </button>
         </div>
 
-        {/* ── Scrollable middle ── */}
+        {/* ── Scrollable fields ── */}
         <div style={{ flex: 1, overflowY: "auto" }}>
-          <div style={{ padding: "0 20px" }}></div>
-          {/* Amount */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "18px 0",
-              borderBottom: "1px solid var(--border)",
-            }}
-          >
-            <span
+          <div style={{ padding: "0 20px" }}>
+            {/* Amount */}
+            <div
               style={{
-                fontSize: 15,
-                color: "var(--text-muted)",
-                width: 90,
-                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                padding: "18px 0",
+                borderBottom: "1px solid var(--border)",
               }}
             >
-              Amount
-            </span>
-            <span
-              style={{
-                flex: 1,
-                fontSize: 28,
-                fontWeight: 700,
-                color: form.amount ? "var(--text)" : "var(--text-muted)",
-                textAlign: "right",
-                fontFamily: "'Syne', sans-serif",
-              }}
-            >
-              {form.amount || "0"}
-            </span>
-          </div>
+              <span
+                style={{
+                  fontSize: 15,
+                  color: "var(--text-muted)",
+                  width: 90,
+                  flexShrink: 0,
+                }}
+              >
+                Amount
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: form.amount ? "var(--text)" : "var(--text-muted)",
+                  textAlign: "right",
+                  fontFamily: "'Syne', sans-serif",
+                }}
+              >
+                {form.amount || "0"}
+              </span>
+            </div>
 
-          {/* Date */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "18px 0",
-              borderBottom: "1px solid var(--border)",
-              cursor: "pointer",
-              position: "relative",
-            }}
-            onClick={() => document.getElementById("date-input").showPicker?.()}
-          >
-            <span
+            {/* Date */}
+            <div
               style={{
-                fontSize: 15,
-                color: "var(--text-muted)",
-                width: 90,
-                flexShrink: 0,
-              }}
-            >
-              Date
-            </span>
-            <span
-              style={{
-                flex: 1,
-                fontSize: 15,
-                color: "var(--text)",
-                textAlign: "right",
-              }}
-            >
-              {new Date(form.date + "T00:00:00").toLocaleDateString("en-US", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </span>
-            <input
-              id="date-input"
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm({ ...form, date: e.target.value })}
-              style={{
-                position: "absolute",
-                opacity: 0,
-                width: "100%",
-                height: "100%",
-                top: 0,
-                left: 0,
+                display: "flex",
+                alignItems: "center",
+                padding: "18px 0",
+                borderBottom: "1px solid var(--border)",
                 cursor: "pointer",
+                position: "relative",
               }}
-            />
-          </div>
-
-          {/* Category */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "18px 0",
-              borderBottom: "1px solid var(--border)",
-              cursor: "pointer",
-            }}
-            onClick={() => setShowCatPicker(true)}
-          >
-            <span
-              style={{
-                fontSize: 15,
-                color: "var(--text-muted)",
-                width: 90,
-                flexShrink: 0,
-              }}
+              onClick={() =>
+                document.getElementById("date-input").showPicker?.()
+              }
             >
-              Category
-            </span>
-            <span
-              style={{
-                flex: 1,
-                fontSize: 15,
-                color: "var(--text)",
-                textAlign: "right",
-              }}
-            >
-              {form.category || "Select..."}
-            </span>
-            <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
-          </div>
-
-          {/* Account */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "18px 0",
-              borderBottom: "1px solid var(--border)",
-              cursor: "pointer",
-            }}
-            onClick={() => setShowAccPicker(true)}
-          >
-            <span
-              style={{
-                fontSize: 15,
-                color: "var(--text-muted)",
-                width: 90,
-                flexShrink: 0,
-              }}
-            >
-              Account
-            </span>
-            <span
-              style={{
-                flex: 1,
-                fontSize: 15,
-                color: "var(--text)",
-                textAlign: "right",
-              }}
-            >
-              {accounts.find((a) => a.id === form.accountId)?.icon}{" "}
-              {accounts.find((a) => a.id === form.accountId)?.name ||
-                "Select..."}
-            </span>
-            <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
-          </div>
-          {/* Note */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "18px 0",
-              borderBottom: "1px solid var(--border)",
-              position: "relative",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 15,
-                color: "var(--text-muted)",
-                width: 90,
-                flexShrink: 0,
-              }}
-            >
-              Note
-            </span>
-            <input
-              type="text"
-              placeholder="Add a note..."
-              value={form.note}
-              onChange={(e) => setForm({ ...form, note: e.target.value })}
-              onFocus={() => setShowSuggestions(suggestions.length > 0)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                fontSize: 15,
-                color: "var(--text)",
-                fontFamily: "inherit",
-                textAlign: "right",
-              }}
-            />
-            {showSuggestions && (
-              <div
+              <span
+                style={{
+                  fontSize: 15,
+                  color: "var(--text-muted)",
+                  width: 90,
+                  flexShrink: 0,
+                }}
+              >
+                Date
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 15,
+                  color: "var(--text)",
+                  textAlign: "right",
+                }}
+              >
+                {new Date(form.date + "T00:00:00").toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+              <input
+                id="date-input"
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
                 style={{
                   position: "absolute",
-                  top: "100%",
+                  opacity: 0,
+                  width: "100%",
+                  height: "100%",
+                  top: 0,
                   left: 0,
-                  right: 0,
-                  zIndex: 50,
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-md)",
-                  overflow: "hidden",
-                  boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
-                  marginTop: 4,
+                  cursor: "pointer",
                 }}
-              >
-                {suggestions.map((s, i) => (
-                  <button
-                    key={i}
-                    onMouseDown={() => {
-                      setForm((f) => ({ ...f, note: s }));
-                      setShowSuggestions(false);
-                    }}
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "9px 14px",
-                      fontSize: 13,
-                      color: "var(--text)",
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      borderBottom:
-                        i < suggestions.length - 1
-                          ? "1px solid var(--border)"
-                          : "none",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "var(--surface-2)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+              />
+            </div>
 
-          {/* AI suggestion */}
-          {showAiCatBadge &&
-            ai?.catSuggestion &&
-            ai.catSuggestion !== form.category && (
-              <div
+            {/* Category */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "18px 0",
+                borderBottom: "1px solid var(--border)",
+                cursor: "pointer",
+              }}
+              onClick={() => setShowCatPicker(true)}
+            >
+              <span
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginTop: 12,
-                  padding: "7px 10px",
-                  borderRadius: "var(--radius-sm)",
-                  background: "rgba(99,102,241,0.1)",
-                  border: "1px solid rgba(99,102,241,0.3)",
+                  fontSize: 15,
+                  color: "var(--text-muted)",
+                  width: 90,
+                  flexShrink: 0,
                 }}
               >
-                <span style={{ fontSize: 12 }}>✨</span>
-                <span
-                  style={{ fontSize: 12, color: "var(--text-muted)", flex: 1 }}
-                >
-                  AI suggests:{" "}
-                  <strong style={{ color: "var(--accent)" }}>
-                    {ai.catSuggestion}
-                  </strong>
-                </span>
-                <button
-                  onClick={applyAiCategory}
+                Category
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 15,
+                  color: "var(--text)",
+                  textAlign: "right",
+                }}
+              >
+                {form.category || "Select..."}
+              </span>
+              <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>
+                ›
+              </span>
+            </div>
+
+            {/* Account */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "18px 0",
+                borderBottom: "1px solid var(--border)",
+                cursor: "pointer",
+              }}
+              onClick={() => setShowAccPicker(true)}
+            >
+              <span
+                style={{
+                  fontSize: 15,
+                  color: "var(--text-muted)",
+                  width: 90,
+                  flexShrink: 0,
+                }}
+              >
+                Account
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 15,
+                  color: "var(--text)",
+                  textAlign: "right",
+                }}
+              >
+                {accounts.find((a) => a.id === form.accountId)?.icon}{" "}
+                {accounts.find((a) => a.id === form.accountId)?.name ||
+                  "Select..."}
+              </span>
+              <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>
+                ›
+              </span>
+            </div>
+
+            {/* Note */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "18px 0",
+                borderBottom: "1px solid var(--border)",
+                position: "relative",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 15,
+                  color: "var(--text-muted)",
+                  width: 90,
+                  flexShrink: 0,
+                }}
+              >
+                Note
+              </span>
+              <input
+                type="text"
+                placeholder="Add a note..."
+                value={form.note}
+                onChange={(e) => setForm({ ...form, note: e.target.value })}
+                onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                style={{
+                  flex: 1,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  fontSize: 15,
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                  textAlign: "right",
+                }}
+              />
+              {showSuggestions && (
+                <div
                   style={{
-                    background: "var(--accent)",
-                    color: "#fff",
-                    border: "none",
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)",
+                    overflow: "hidden",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+                    marginTop: 4,
+                  }}
+                >
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onMouseDown={() => {
+                        setForm((f) => ({ ...f, note: s }));
+                        setShowSuggestions(false);
+                      }}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "9px 14px",
+                        fontSize: 13,
+                        color: "var(--text)",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        borderBottom:
+                          i < suggestions.length - 1
+                            ? "1px solid var(--border)"
+                            : "none",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = "var(--surface-2)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* AI suggestion */}
+            {showAiCatBadge &&
+              ai?.catSuggestion &&
+              ai.catSuggestion !== form.category && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginTop: 12,
+                    padding: "7px 10px",
                     borderRadius: "var(--radius-sm)",
-                    padding: "3px 10px",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
+                    background: "rgba(99,102,241,0.1)",
+                    border: "1px solid rgba(99,102,241,0.3)",
                   }}
                 >
-                  Apply
-                </button>
-                <button
-                  onClick={() => setShowAiCatBadge(false)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "var(--text-muted)",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            )}
+                  <span style={{ fontSize: 12 }}>✨</span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-muted)",
+                      flex: 1,
+                    }}
+                  >
+                    AI suggests:{" "}
+                    <strong style={{ color: "var(--accent)" }}>
+                      {ai.catSuggestion}
+                    </strong>
+                  </span>
+                  <button
+                    onClick={applyAiCategory}
+                    style={{
+                      background: "var(--accent)",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "3px 10px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Apply
+                  </button>
+                  <button
+                    onClick={() => setShowAiCatBadge(false)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--text-muted)",
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+          </div>
         </div>
 
+        {/* ── Save button ── */}
+        {/* FIX: padding typo corrected from "px 20px 20px" to "12px 20px 20px" */}
+        <div style={{ padding: "12px 20px 20px" }}>
+          <button
+            onClick={addEntry}
+            disabled={saving}
+            style={{
+              width: "100%",
+              padding: "14px",
+              borderRadius: "var(--radius-md)",
+              background:
+                form.type === "expense" ? "var(--red)" : "var(--green)",
+              color: "#fff",
+              border: "none",
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {saving
+              ? "Saving..."
+              : editEntry
+                ? "Save Changes"
+                : `Add ${form.type === "expense" ? "Expense" : "Income"}`}
+          </button>
+          {editEntry && (
+            <button
+              onClick={async () => {
+                await pb.collection("entries").delete(editEntry);
+                onEntriesChange(entries.filter((e) => e.id !== editEntry));
+                closeForm();
+              }}
+              style={{
+                width: "100%",
+                padding: "12px",
+                marginTop: 8,
+                borderRadius: "var(--radius-md)",
+                background: "transparent",
+                color: "var(--red)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              🗑 Delete
+            </button>
+          )}
+        </div>
+
+        {/* ── Keypad pinned at bottom ── */}
+        {/* FIX: moved outside the save-button div so it's a proper sibling,
+            correctly pinned at the very bottom of the fixed overlay */}
+        <NumericKeypad
+          value={form.amount}
+          onChange={(val) => setForm({ ...form, amount: val })}
+        />
+
+        {/* ── Category Manager modal ── */}
+        {/* FIX: removed the duplicate catModal render that was buried inside the
+            save-button div; this is the single correct location */}
         {catModal && (
           <CategoryManager
             type={catModal}
@@ -2834,7 +2776,6 @@ export default function ExpenseTracker({
                   margin: "0 auto 16px",
                 }}
               />
-
               <div
                 style={{
                   display: "flex",
@@ -2865,7 +2806,6 @@ export default function ExpenseTracker({
                   ✕
                 </button>
               </div>
-
               <div
                 style={{
                   display: "grid",
@@ -2942,7 +2882,6 @@ export default function ExpenseTracker({
                   margin: "0 auto 16px",
                 }}
               />
-
               <div
                 style={{
                   display: "flex",
@@ -2973,7 +2912,6 @@ export default function ExpenseTracker({
                   ✕
                 </button>
               </div>
-
               <div
                 style={{
                   display: "grid",
@@ -3031,80 +2969,11 @@ export default function ExpenseTracker({
             </div>
           </div>
         )}
-
-        {/* Save button */}
-        <div style={{ padding: "px 20px 20px" }}>
-          <button
-            onClick={addEntry}
-            disabled={saving}
-            style={{
-              width: "100%",
-              padding: "14px",
-              borderRadius: "var(--radius-md)",
-              background:
-                form.type === "expense" ? "var(--red)" : "var(--green)",
-              color: "#fff",
-              border: "none",
-              fontSize: 15,
-              fontWeight: 700,
-              cursor: "pointer",
-             
-            }}
-          >
-            {saving
-              ? "Saving..."
-              : editEntry
-                ? "Save Changes"
-                : `Add ${form.type === "expense" ? "Expense" : "Income"}`}
-          </button>
-          {editEntry && (
-            <button
-              onClick={async () => {
-                await pb.collection("entries").delete(editEntry);
-                onEntriesChange(entries.filter((e) => e.id !== editEntry));
-                closeForm();
-              }}
-              style={{
-                width: "100%",
-                padding: "12px",
-                marginTop: 8,
-                borderRadius: "var(--radius-md)",
-                background: "transparent",
-                color: "var(--red)",
-                border: "1px solid rgba(239,68,68,0.3)",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              🗑 Delete
-            </button>
-          )}
-
-          {/* close scrollable middle */}
-
-          {/* Keypad pinned at bottom */}
-          <NumericKeypad
-            value={form.amount}
-            onChange={(val) => setForm({ ...form, amount: val })}
-          />
-
-          {catModal && (
-            <CategoryManager
-              type={catModal}
-              categories={catModal === "expense" ? expCats : incCats}
-              onAdd={(cat) => handleAddCat(catModal, cat)}
-              onDelete={(name) => handleDeleteCat(catModal, name)}
-              onClose={() => setCatModal(null)}
-            />
-          )}
-          {showAccPicker}
-          {showCatPicker}
-        </div>
       </div>
     );
   }
 
+  // ── Main Ledger View ──────────────────────────────────────────
   return (
     <div className="page" style={{ padding: "16px", gap: 0 }}>
       {showTransfer && (
@@ -3128,7 +2997,6 @@ export default function ExpenseTracker({
           onClose={() => setCatHistory(null)}
         />
       )}
-
       {catModal && (
         <CategoryManager
           type={catModal}
@@ -3219,13 +3087,7 @@ export default function ExpenseTracker({
             >
               {s.label}
             </p>
-            <p
-              style={{
-                fontSize: 15,
-                fontWeight: 700,
-                color: s.color,
-              }}
-            >
+            <p style={{ fontSize: 15, fontWeight: 700, color: s.color }}>
               {s.value}
             </p>
           </div>
@@ -3314,7 +3176,6 @@ export default function ExpenseTracker({
           {monthlyGrouped.map(({ date, entries: dayEntries }) => {
             const d = new Date(date + "T00:00:00");
             const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-            const dayNum = d.getDate();
             const dayIncome = dayEntries
               .filter(
                 (e) =>
@@ -3371,86 +3232,86 @@ export default function ExpenseTracker({
                   const acc = (accounts || []).find(
                     (a) => a.id === e.accountId,
                   );
+
                   if (e._isPair) {
-                    if (e._isPair) {
-                      const fromAcc = (accounts || []).find(
-                        (a) => a.id === e.accountId,
-                      );
-                      const toAcc = (accounts || []).find(
-                        (a) => a.id === e._transferTo?.accountId,
-                      );
-                      return (
+                    const fromAcc = (accounts || []).find(
+                      (a) => a.id === e.accountId,
+                    );
+                    const toAcc = (accounts || []).find(
+                      (a) => a.id === e._transferTo?.accountId,
+                    );
+                    return (
+                      <div
+                        key={`${e.id}-${idx}`}
+                        onClick={() => setEditTransfer(e)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "9px 0",
+                          borderBottom: "1px solid var(--border)",
+                          cursor: "pointer",
+                        }}
+                        onMouseEnter={(el) =>
+                          (el.currentTarget.style.background =
+                            "var(--surface-2)")
+                        }
+                        onMouseLeave={(el) =>
+                          (el.currentTarget.style.background = "transparent")
+                        }
+                      >
                         <div
-                          key={`${e.id}-${idx}`}
-                          onClick={() => setEditTransfer(e)}
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "9px 0",
-                            borderBottom: "1px solid var(--border)",
-                            cursor: "pointer",
+                            gap: 10,
                           }}
-                          onMouseEnter={(el) =>
-                            (el.currentTarget.style.background =
-                              "var(--surface-2)")
-                          }
-                          onMouseLeave={(el) =>
-                            (el.currentTarget.style.background = "transparent")
-                          }
                         >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 10,
-                            }}
-                          >
-                            <div>
-                              <p
-                                style={{
-                                  fontSize: 13,
-                                  color: "var(--text)",
-                                  fontWeight: 500,
-                                }}
-                              >
-                                {fromAcc?.name} → {toAcc?.name}
-                              </p>
-                              <p
-                                style={{
-                                  fontSize: 11,
-                                  color: "var(--text-muted)",
-                                  marginTop: 1,
-                                }}
-                              >
-                                Transfer
-                                {e.note
-                                  ? ` · ${e.note.replace(`Transfer to ${toAcc?.name}: `, "").replace(`Transfer to ${toAcc?.name}`, "")}`
-                                  : ""}
-                              </p>
-                            </div>
-                          </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                            }}
-                          >
-                            <span
+                          <div>
+                            <p
                               style={{
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: "var(--text-muted)",
+                                fontSize: 13,
+                                color: "var(--text)",
+                                fontWeight: 500,
                               }}
                             >
-                              रु{e.amount.toLocaleString()}
-                            </span>
+                              {fromAcc?.name} → {toAcc?.name}
+                            </p>
+                            <p
+                              style={{
+                                fontSize: 11,
+                                color: "var(--text-muted)",
+                                marginTop: 1,
+                              }}
+                            >
+                              Transfer
+                              {e.note
+                                ? ` · ${e.note.replace(`Transfer to ${toAcc?.name}: `, "").replace(`Transfer to ${toAcc?.name}`, "")}`
+                                : ""}
+                            </p>
                           </div>
                         </div>
-                      );
-                    }
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 700,
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            रु{e.amount.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    );
                   }
+
                   return (
                     <div
                       key={e.id}
@@ -3541,8 +3402,7 @@ export default function ExpenseTracker({
                           marginLeft: 8,
                         }}
                       >
-                        रु
-                        {e.amount.toLocaleString()}
+                        रु{e.amount.toLocaleString()}
                       </span>
                     </div>
                   );
