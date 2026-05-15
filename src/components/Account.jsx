@@ -1857,7 +1857,7 @@ export default function Account({
         <p
           style={{
             color: "var(--text-muted)",
-            fontSize: 13,
+            fontSize: 12,
             textAlign: "center",
             padding: "40px 0",
           }}
@@ -1906,7 +1906,7 @@ export default function Account({
                       color: grpTotalNPR >= 0 ? "var(--green)" : "var(--red)",
                     }}
                   >
-                    {grpTotalNPR >= 0 ? "+" : "−"}रु
+                    रु
                     {Math.abs(grpTotalNPR).toLocaleString("en-US", {
                       maximumFractionDigits: 0,
                     })}
@@ -1957,7 +1957,7 @@ export default function Account({
                           >
                             <p
                               style={{
-                                fontSize: 13,
+                                fontSize: 12,
                                 fontWeight: 500,
                                 color: "var(--text)",
                                 overflow: "hidden",
@@ -1998,8 +1998,8 @@ export default function Account({
                         <div style={{ textAlign: "right" }}>
                           <p
                             style={{
-                              fontSize: 14,
-                              fontWeight: 700,
+                              fontSize: 12,
+                              fontWeight: 500,
                               color: bal >= 0 ? "var(--green)" : "var(--red)",
                             }}
                           >

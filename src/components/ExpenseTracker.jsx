@@ -1343,20 +1343,16 @@ function EditTransferPage({
   const [showToPicker, setShowToPicker] = useState(false);
 
   useEffect(() => {
-    const isOpen = showAccPicker || showCatPicker;
+    const isOpen = showFromPicker || showToPicker;
     const scrollEl = document.querySelector(".main-content");
 
     if (isOpen) {
-      if (scrollEl) {
-        scrollEl.style.overflow = "hidden";
-      }
+      if (scrollEl) scrollEl.style.overflow = "hidden";
       document.body.style.overflow = "hidden";
       document.body.style.position = "fixed";
       document.body.style.width = "100%";
     } else {
-      if (scrollEl) {
-        scrollEl.style.overflow = "";
-      }
+      if (scrollEl) scrollEl.style.overflow = "";
       document.body.style.overflow = "";
       document.body.style.position = "";
       document.body.style.width = "";
@@ -1368,8 +1364,7 @@ function EditTransferPage({
       document.body.style.position = "";
       document.body.style.width = "";
     };
-  }, [showAccPicker, showCatPicker]);
-
+  }, [showFromPicker, showToPicker]);
   const [fromId, setFromId] = useState(entry.accountId);
   const [toId, setToId] = useState(entry._transferTo?.accountId);
 
@@ -1943,6 +1938,60 @@ function EditTransferPage({
   );
 }
 
+function NumericKeypad({ value, onChange }) {
+  const handleKey = (key) => {
+    if (key === "⌫") {
+      onChange(value.slice(0, -1) || "");
+    } else if (key === ".") {
+      if (!value.includes(".")) onChange(value + ".");
+    } else {
+      if (value === "0") onChange(key);
+      else onChange(value + key);
+    }
+  };
+
+  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫"];
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, 1fr)",
+        gap: 1,
+        background: "var(--border)",
+        borderTop: "1px solid var(--border)",
+        flexShrink: 0,
+      }}
+    >
+      {keys.map((key) => (
+        <button
+          key={key}
+          onClick={() => handleKey(key)}
+          style={{
+            padding: "18px 0",
+            fontSize: key === "⌫" ? 20 : 22,
+            fontWeight: 500,
+            background: key === "⌫" ? "var(--surface-2)" : "var(--surface)",
+            border: "none",
+            color: key === "⌫" ? "var(--red)" : "var(--text)",
+            cursor: "pointer",
+            fontFamily: "'Syne', sans-serif",
+          }}
+          onTouchStart={(e) =>
+            (e.currentTarget.style.background = "var(--surface-2)")
+          }
+          onTouchEnd={(e) =>
+            (e.currentTarget.style.background =
+              key === "⌫" ? "var(--surface-2)" : "var(--surface)")
+          }
+        >
+          {key}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function ExpenseTracker({
   userId,
   accounts,
@@ -2331,15 +2380,17 @@ export default function ExpenseTracker({
   }
 
   if (showForm) {
+
     return (
       <div
-        className="page"
         style={{
           position: "fixed",
           inset: 0,
           background: "var(--bg)",
-          overflowY: "auto",
-          zIndex: 50,
+          zIndex: 100,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
         {/* ── Top bar ── */}
@@ -2432,8 +2483,9 @@ export default function ExpenseTracker({
           </button>
         </div>
 
-        {/* ── Form fields ── */}
-        <div style={{ padding: "0 20px" }}>
+        {/* ── Scrollable middle ── */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          <div style={{ padding: "0 20px" }}></div>
           {/* Amount */}
           <div
             style={{
@@ -2453,23 +2505,18 @@ export default function ExpenseTracker({
             >
               Amount
             </span>
-            <input
-              type="number"
-              placeholder="0"
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
-              autoFocus
+            <span
               style={{
                 flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                fontSize: 16,
-                color: "var(--text)",
-                fontFamily: "inherit",
+                fontSize: 28,
+                fontWeight: 700,
+                color: form.amount ? "var(--text)" : "var(--text-muted)",
                 textAlign: "right",
+                fontFamily: "'Syne', sans-serif",
               }}
-            />
+            >
+              {form.amount || "0"}
+            </span>
           </div>
 
           {/* Date */}
@@ -2741,66 +2788,6 @@ export default function ExpenseTracker({
             )}
         </div>
 
-        {/* ── Save button ── */}
-
-        <div
-          style={{
-            paddingTop: 24,
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-          }}
-        >
-          <button
-            onClick={addEntry}
-            disabled={saving}
-            style={{
-              width: "100%",
-              padding: "14px",
-              borderRadius: "var(--radius-md)",
-              background:
-                form.type === "expense"
-                  ? "var(--red)"
-                  : form.type === "income"
-                    ? "var(--green)"
-                    : "var(--accent)",
-              color: "#fff",
-              border: "none",
-              fontSize: 15,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            {saving
-              ? "Saving..."
-              : editEntry
-                ? "Save Changes"
-                : `Add ${form.type === "expense" ? "Expense" : "Income"}`}
-          </button>
-          {editEntry && (
-            <button
-              onClick={async () => {
-                await pb.collection("entries").delete(editEntry);
-                onEntriesChange(entries.filter((e) => e.id !== editEntry));
-                closeForm();
-              }}
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: "var(--radius-md)",
-                background: "transparent",
-                color: "var(--red)",
-                border: "1px solid rgba(239,68,68,0.3)",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              🗑 Delete
-            </button>
-          )}
-        </div>
-
         {catModal && (
           <CategoryManager
             type={catModal}
@@ -3044,6 +3031,76 @@ export default function ExpenseTracker({
             </div>
           </div>
         )}
+
+        {/* Save button */}
+        <div style={{ padding: "px 20px 20px" }}>
+          <button
+            onClick={addEntry}
+            disabled={saving}
+            style={{
+              width: "100%",
+              padding: "14px",
+              borderRadius: "var(--radius-md)",
+              background:
+                form.type === "expense" ? "var(--red)" : "var(--green)",
+              color: "#fff",
+              border: "none",
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: "pointer",
+             
+            }}
+          >
+            {saving
+              ? "Saving..."
+              : editEntry
+                ? "Save Changes"
+                : `Add ${form.type === "expense" ? "Expense" : "Income"}`}
+          </button>
+          {editEntry && (
+            <button
+              onClick={async () => {
+                await pb.collection("entries").delete(editEntry);
+                onEntriesChange(entries.filter((e) => e.id !== editEntry));
+                closeForm();
+              }}
+              style={{
+                width: "100%",
+                padding: "12px",
+                marginTop: 8,
+                borderRadius: "var(--radius-md)",
+                background: "transparent",
+                color: "var(--red)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              🗑 Delete
+            </button>
+          )}
+
+          {/* close scrollable middle */}
+
+          {/* Keypad pinned at bottom */}
+          <NumericKeypad
+            value={form.amount}
+            onChange={(val) => setForm({ ...form, amount: val })}
+          />
+
+          {catModal && (
+            <CategoryManager
+              type={catModal}
+              categories={catModal === "expense" ? expCats : incCats}
+              onAdd={(cat) => handleAddCat(catModal, cat)}
+              onDelete={(name) => handleDeleteCat(catModal, name)}
+              onClose={() => setCatModal(null)}
+            />
+          )}
+          {showAccPicker}
+          {showCatPicker}
+        </div>
       </div>
     );
   }
