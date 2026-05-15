@@ -419,17 +419,6 @@ export default function ExpenseTracker({
   // ── Main Ledger View ──────────────────────────────────────────
   return (
     <div className="page" style={{ padding: "16px", gap: 0 }}>
-      {showTransfer && (
-        <Transfermodal
-          accounts={accounts}
-          userId={userId}
-          today={today}
-          onTransferDone={(newEntries) =>
-            onEntriesChange([...newEntries, ...entries])
-          }
-          onClose={() => setShowTransfer(false)}
-        />
-      )}
       {catHistory && (
         <CategoryHistoryModal
           category={catHistory.category}
