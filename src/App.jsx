@@ -255,6 +255,7 @@ export default function App() {
           <Insights
             userId={userId}
             entries={entries}
+            accounts={accounts}
             expCats={expCats}
             incCats={incCats}
             ai={ai}

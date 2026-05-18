@@ -46,7 +46,9 @@ function GymCalendar({ year, month, attended, today, onToggle }) {
         style={{
           aspectRatio: "1",
           borderRadius: 6,
-          border: isToday ? "1.5px solid var(--accent)" : "1px solid transparent",
+          border: isToday
+            ? "1.5px solid var(--accent)"
+            : "1px solid transparent",
           background: isAttended ? "rgba(99,102,241,0.18)" : "var(--surface-2)",
           cursor: isFuture ? "default" : "pointer",
           opacity: isFuture ? 0.3 : 1,
@@ -58,35 +60,70 @@ function GymCalendar({ year, month, attended, today, onToggle }) {
           transition: "background 0.15s, transform 0.1s",
           padding: 0,
         }}
-        onMouseEnter={(e) => { if (!isFuture) e.currentTarget.style.transform = "scale(1.08)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+        onMouseEnter={(e) => {
+          if (!isFuture) e.currentTarget.style.transform = "scale(1.08)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "scale(1)";
+        }}
       >
-        <span style={{
-          fontSize: 11, fontWeight: isToday ? 700 : 500,
-          color: isAttended ? "var(--accent)" : isToday ? "var(--text)" : "var(--text-muted)",
-          lineHeight: 1,
-        }}>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: isToday ? 700 : 500,
+            color: isAttended
+              ? "var(--accent)"
+              : isToday
+                ? "var(--text)"
+                : "var(--text-muted)",
+            lineHeight: 1,
+          }}
+        >
           {d}
         </span>
-        {isAttended && <span style={{ fontSize: 6, color: "var(--accent)", lineHeight: 1 }}>●</span>}
+        {isAttended && (
+          <span style={{ fontSize: 6, color: "var(--accent)", lineHeight: 1 }}>
+            ●
+          </span>
+        )}
       </button>,
     );
   }
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, marginBottom: 3 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(7, 1fr)",
+          gap: 3,
+          marginBottom: 3,
+        }}
+      >
         {weekDays.map((d) => (
-          <div key={d} style={{
-            textAlign: "center", fontSize: 9, fontWeight: 600,
-            color: "var(--text-muted)", padding: "3px 0",
-            textTransform: "uppercase", letterSpacing: 0.5,
-          }}>
+          <div
+            key={d}
+            style={{
+              textAlign: "center",
+              fontSize: 9,
+              fontWeight: 600,
+              color: "var(--text-muted)",
+              padding: "3px 0",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}
+          >
             {d}
           </div>
         ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(7, 1fr)",
+          gap: 3,
+        }}
+      >
         {cells}
       </div>
     </div>
@@ -123,9 +160,330 @@ function TabButton({ id, label, icon, active, onClick }) {
   );
 }
 
+function ChartJsLoader() {
+  useEffect(() => {
+    if (window.Chart) return;
+    const s = document.createElement("script");
+    s.src =
+      "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
+    s.async = true;
+    document.head.appendChild(s);
+  }, []);
+  return null;
+}
+
+// ── Net Worth Timeline Chart ───────────────────────────────────────
+function NetWorthChart({ entries, accounts }) {
+  const canvasRef = useRef(null);
+  const chartRef = useRef(null);
+
+  const monthData = useMemo(() => {
+    const now = new Date();
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const lbl = d.toLocaleDateString("en-US", {
+        month: "short",
+        year: "2-digit",
+      });
+      return { key, lbl, netWorth: 0 };
+    });
+
+    // Compute cumulative net worth up to end of each month
+    months.forEach((m, idx) => {
+      const cutoffMonth = m.key;
+      let total = 0;
+      entries
+        .filter((e) => e.date.slice(0, 7) <= cutoffMonth)
+        .forEach((e) => {
+          total += e.type === "income" ? e.amount : -e.amount;
+        });
+      m.netWorth = total;
+    });
+
+    return months;
+  }, [entries, accounts]);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    if (chartRef.current) {
+      chartRef.current.destroy();
+      chartRef.current = null;
+    }
+
+    const initChart = () => {
+      if (!window.Chart || !canvasRef.current) return;
+      const maxVal = Math.max(...monthData.map((m) => m.netWorth));
+      const isPositive = monthData[monthData.length - 1]?.netWorth >= 0;
+
+      chartRef.current = new window.Chart(canvasRef.current, {
+        type: "line",
+        data: {
+          labels: monthData.map((m) => m.lbl),
+          datasets: [
+            {
+              label: "Net Worth",
+              data: monthData.map((m) => m.netWorth),
+              borderColor: isPositive ? "#22c55e" : "#ef4444",
+              backgroundColor: isPositive
+                ? "rgba(34,197,94,0.08)"
+                : "rgba(239,68,68,0.08)",
+              pointBackgroundColor: isPositive ? "#22c55e" : "#ef4444",
+              pointRadius: 4,
+              pointHoverRadius: 7,
+              borderWidth: 2.5,
+              fill: true,
+              tension: 0.3,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `Net Worth: रु${ctx.parsed.y.toLocaleString()}`,
+              },
+              backgroundColor: "#1e1e2e",
+              titleColor: "#fff",
+              bodyColor: "#ccc",
+              padding: 10,
+              cornerRadius: 8,
+            },
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                font: { size: 10 },
+                color: "#888",
+                maxRotation: 0,
+                autoSkip: false,
+              },
+              border: { display: false },
+            },
+            y: {
+              grid: { color: "rgba(128,128,128,0.1)" },
+              border: { display: false },
+              ticks: {
+                font: { size: 11 },
+                color: "#888",
+                callback: (v) =>
+                  `रु${v >= 1000 || v <= -1000 ? (v / 1000).toFixed(0) + "k" : v}`,
+                maxTicksLimit: 5,
+              },
+            },
+          },
+          animation: { duration: 600 },
+        },
+      });
+    };
+
+    if (window.Chart) initChart();
+    else {
+      const id = setInterval(() => {
+        if (window.Chart) {
+          clearInterval(id);
+          initChart();
+        }
+      }, 100);
+      return () => clearInterval(id);
+    }
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.destroy();
+        chartRef.current = null;
+      }
+    };
+  }, [monthData]);
+
+  const current = monthData[monthData.length - 1]?.netWorth || 0;
+  const prev = monthData[monthData.length - 2]?.netWorth || 0;
+  const change = current - prev;
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16,
+        }}
+      >
+        <h2 className="card-title" style={{ marginBottom: 0 }}>
+          📈 Net Worth Timeline
+        </h2>
+        <div style={{ textAlign: "right" }}>
+          <p
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: current >= 0 ? "var(--green)" : "var(--red)",
+            }}
+          >
+            रु{current.toLocaleString()}
+          </p>
+          <p
+            style={{
+              fontSize: 11,
+              color: change >= 0 ? "var(--green)" : "var(--red)",
+              marginTop: 2,
+            }}
+          >
+            {change >= 0 ? "+" : ""}रु{change.toLocaleString()} vs last month
+          </p>
+        </div>
+      </div>
+      <div style={{ position: "relative", width: "100%", height: 220 }}>
+        <canvas ref={canvasRef} />
+        {entries.length === 0 && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+              No data yet
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function IncomeExpenseChart({ entries }) {
+  const canvasRef = useRef(null);
+  const chartRef = useRef(null);
+
+  const monthData = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const lbl = d.toLocaleDateString("en-US", { month: "short" });
+      const income = entries
+        .filter(
+          (e) =>
+            e.type === "income" && !e.isTransfer && e.date.slice(0, 7) === key,
+        )
+        .reduce((s, e) => s + e.amount, 0);
+      const expense = entries
+        .filter(
+          (e) =>
+            e.type === "expense" && !e.isTransfer && e.date.slice(0, 7) === key,
+        )
+        .reduce((s, e) => s + e.amount, 0);
+      return { key, lbl, income, expense };
+    });
+  }, [entries]);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    if (chartRef.current) {
+      chartRef.current.destroy();
+      chartRef.current = null;
+    }
+    const initChart = () => {
+      if (!window.Chart || !canvasRef.current) return;
+      chartRef.current = new window.Chart(canvasRef.current, {
+        type: "bar",
+        data: {
+          labels: monthData.map((m) => m.lbl),
+          datasets: [
+            {
+              label: "Income",
+              data: monthData.map((m) => m.income),
+              backgroundColor: "rgba(34,197,94,0.7)",
+              borderRadius: 4,
+            },
+            {
+              label: "Expense",
+              data: monthData.map((m) => m.expense),
+              backgroundColor: "rgba(239,68,68,0.7)",
+              borderRadius: 4,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: "top",
+              labels: { color: "#888", font: { size: 11 }, boxWidth: 12 },
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) =>
+                  `${ctx.dataset.label}: रु${ctx.parsed.y.toLocaleString()}`,
+              },
+              backgroundColor: "#1e1e2e",
+              titleColor: "#fff",
+              bodyColor: "#ccc",
+              padding: 10,
+              cornerRadius: 8,
+            },
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: "#888", font: { size: 11 } },
+              border: { display: false },
+            },
+            y: {
+              grid: { color: "rgba(128,128,128,0.1)" },
+              border: { display: false },
+              ticks: {
+                color: "#888",
+                font: { size: 11 },
+                callback: (v) =>
+                  `रु${v >= 1000 ? (v / 1000).toFixed(0) + "k" : v}`,
+                maxTicksLimit: 5,
+              },
+            },
+          },
+          animation: { duration: 400 },
+        },
+      });
+    };
+    if (window.Chart) initChart();
+    else {
+      const id = setInterval(() => {
+        if (window.Chart) {
+          clearInterval(id);
+          initChart();
+        }
+      }, 100);
+      return () => clearInterval(id);
+    }
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.destroy();
+        chartRef.current = null;
+      }
+    };
+  }, [monthData]);
+
+  return (
+    <div style={{ position: "relative", width: "100%", height: 220 }}>
+      <canvas ref={canvasRef} />
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────
 export default function Insights({
   userId,
+  accounts,
   entries,
   expCats = [],
   incCats = [],
@@ -153,6 +511,9 @@ export default function Insights({
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterPeriod, setFilterPeriod] = useState("all");
 
+  // ── Chart View ──────────────────────────────────────────────────
+  const [chartView, setChartView] = useState("networth");
+
   // ── Gym state ──────────────────────────────────────────────────
   const todayObj = new Date();
   const [gymRecords, setGymRecords] = useState({});
@@ -164,7 +525,9 @@ export default function Insights({
   const loadGym = useCallback(async () => {
     setGymLoading(true);
     try {
-      const res = await pb.collection("gym_attendance").getFullList({ filter: `userId = '${userId}'`, sort: "date" });
+      const res = await pb
+        .collection("gym_attendance")
+        .getFullList({ filter: `userId = '${userId}'`, sort: "date" });
       const map = {};
       res.forEach((r) => (map[r.date] = r.id));
       setGymRecords(map);
@@ -175,7 +538,9 @@ export default function Insights({
     }
   }, [userId]);
 
-  useEffect(() => { loadGym(); }, [loadGym]);
+  useEffect(() => {
+    loadGym();
+  }, [loadGym]);
 
   const handleGymToggle = async (dateStr) => {
     if (gymSaving) return;
@@ -183,9 +548,15 @@ export default function Insights({
     try {
       if (gymRecords[dateStr]) {
         await pb.collection("gym_attendance").delete(gymRecords[dateStr]);
-        setGymRecords((prev) => { const next = { ...prev }; delete next[dateStr]; return next; });
+        setGymRecords((prev) => {
+          const next = { ...prev };
+          delete next[dateStr];
+          return next;
+        });
       } else {
-        const created = await pb.collection("gym_attendance").create({ userId, date: dateStr });
+        const created = await pb
+          .collection("gym_attendance")
+          .create({ userId, date: dateStr });
         setGymRecords((prev) => ({ ...prev, [dateStr]: created.id }));
       }
     } catch (err) {
@@ -195,17 +566,32 @@ export default function Insights({
     }
   };
 
-  const gymAttended = useMemo(() => new Set(Object.keys(gymRecords)), [gymRecords]);
+  const gymAttended = useMemo(
+    () => new Set(Object.keys(gymRecords)),
+    [gymRecords],
+  );
   const gymMonthKey = `${gymViewYear}-${String(gymViewMonth + 1).padStart(2, "0")}`;
-  const gymMonthCount = useMemo(() => [...gymAttended].filter((d) => d.startsWith(gymMonthKey)).length, [gymAttended, gymMonthKey]);
+  const gymMonthCount = useMemo(
+    () => [...gymAttended].filter((d) => d.startsWith(gymMonthKey)).length,
+    [gymAttended, gymMonthKey],
+  );
   const gymDaysInViewMonth = getDaysInMonth(gymViewYear, gymViewMonth);
-  const gymIsCurrentMonth = gymViewYear === todayObj.getFullYear() && gymViewMonth === todayObj.getMonth();
-  const gymPassedDays = gymIsCurrentMonth ? todayObj.getDate() : gymDaysInViewMonth;
-  const gymRate = gymPassedDays > 0 ? Math.round((gymMonthCount / gymPassedDays) * 100) : 0;
+  const gymIsCurrentMonth =
+    gymViewYear === todayObj.getFullYear() &&
+    gymViewMonth === todayObj.getMonth();
+  const gymPassedDays = gymIsCurrentMonth
+    ? todayObj.getDate()
+    : gymDaysInViewMonth;
+  const gymRate =
+    gymPassedDays > 0 ? Math.round((gymMonthCount / gymPassedDays) * 100) : 0;
   const gymStreak = useMemo(() => calcGymStreak(gymAttended), [gymAttended]);
   const gymTotalAll = gymAttended.size;
   const isTodayAttended = gymAttended.has(today);
-  const gymMonthLabel = new Date(gymViewYear, gymViewMonth, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const gymMonthLabel = new Date(
+    gymViewYear,
+    gymViewMonth,
+    1,
+  ).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const changeGymMonth = (dir) => {
     const d = new Date(gymViewYear, gymViewMonth + dir, 1);
     setGymViewYear(d.getFullYear());
@@ -216,30 +602,60 @@ export default function Insights({
   const searchResults = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     const now = new Date();
-    return entries.filter((e) => {
-      if (e.isTransfer) return false;
-      if (filterType !== "all" && e.type !== filterType) return false;
-      if (filterCategory !== "all" && e.category !== filterCategory) return false;
-      if (filterPeriod !== "all") {
-        const entryDate = new Date(e.date + "T00:00:00");
-        if (filterPeriod === "today" && e.date !== today) return false;
-        if (filterPeriod === "week") { const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7); if (entryDate < weekAgo) return false; }
-        if (filterPeriod === "month" && e.date.slice(0, 7) !== thisMonth) return false;
-        if (filterPeriod === "last3") { const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1); if (entryDate < threeMonthsAgo) return false; }
-      }
-      if (q) {
-        const inNote = e.note?.toLowerCase().includes(q);
-        const inCategory = e.category?.toLowerCase().includes(q);
-        const inAmount = String(e.amount).includes(q);
-        if (!inNote && !inCategory && !inAmount) return false;
-      }
-      return true;
-    }).sort((a, b) => b.date.localeCompare(a.date));
-  }, [entries, searchQuery, filterType, filterCategory, filterPeriod, today, thisMonth]);
+    return entries
+      .filter((e) => {
+        if (e.isTransfer) return false;
+        if (filterType !== "all" && e.type !== filterType) return false;
+        if (filterCategory !== "all" && e.category !== filterCategory)
+          return false;
+        if (filterPeriod !== "all") {
+          const entryDate = new Date(e.date + "T00:00:00");
+          if (filterPeriod === "today" && e.date !== today) return false;
+          if (filterPeriod === "week") {
+            const weekAgo = new Date(now);
+            weekAgo.setDate(now.getDate() - 7);
+            if (entryDate < weekAgo) return false;
+          }
+          if (filterPeriod === "month" && e.date.slice(0, 7) !== thisMonth)
+            return false;
+          if (filterPeriod === "last3") {
+            const threeMonthsAgo = new Date(
+              now.getFullYear(),
+              now.getMonth() - 3,
+              1,
+            );
+            if (entryDate < threeMonthsAgo) return false;
+          }
+        }
+        if (q) {
+          const inNote = e.note?.toLowerCase().includes(q);
+          const inCategory = e.category?.toLowerCase().includes(q);
+          const inAmount = String(e.amount).includes(q);
+          if (!inNote && !inCategory && !inAmount) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [
+    entries,
+    searchQuery,
+    filterType,
+    filterCategory,
+    filterPeriod,
+    today,
+    thisMonth,
+  ]);
 
   useEffect(() => {
-    if (propBills) { setBills(propBills); return; }
-    pb.collection("bills").getFullList({ filter: `userId = '${userId}'` }).catch(() => []).then((b) => setBills(b)).finally(() => setLoading(false));
+    if (propBills) {
+      setBills(propBills);
+      return;
+    }
+    pb.collection("bills")
+      .getFullList({ filter: `userId = '${userId}'` })
+      .catch(() => [])
+      .then((b) => setBills(b))
+      .finally(() => setLoading(false));
   }, [userId, propBills]);
 
   useEffect(() => {
@@ -248,7 +664,11 @@ export default function Insights({
 
   // ── Finance streak ─────────────────────────────────────────────
   const streak = useMemo(() => {
-    const expenseDates = new Set(entries.filter((e) => e.type === "expense" && !e.isTransfer).map((e) => e.date));
+    const expenseDates = new Set(
+      entries
+        .filter((e) => e.type === "expense" && !e.isTransfer)
+        .map((e) => e.date),
+    );
     let count = 0;
     const d = new Date(today);
     while (true) {
@@ -261,20 +681,52 @@ export default function Insights({
   }, [entries, today]);
 
   // ── Monthly stats ──────────────────────────────────────────────
-  const thisMonthIncome = useMemo(() =>
-    entries.filter((e) => e.type === "income" && !e.isTransfer && e.date.slice(0, 7) === thisMonth).reduce((s, e) => s + e.amount, 0),
-    [entries, thisMonth]);
-  const thisMonthExpense = useMemo(() =>
-    entries.filter((e) => e.type === "expense" && !e.isTransfer && e.date.slice(0, 7) === thisMonth).reduce((s, e) => s + e.amount, 0),
-    [entries, thisMonth]);
-  const savedRate = thisMonthIncome > 0 ? Math.round(((thisMonthIncome - thisMonthExpense) / thisMonthIncome) * 100) : 0;
+  const thisMonthIncome = useMemo(
+    () =>
+      entries
+        .filter(
+          (e) =>
+            e.type === "income" &&
+            !e.isTransfer &&
+            e.date.slice(0, 7) === thisMonth,
+        )
+        .reduce((s, e) => s + e.amount, 0),
+    [entries, thisMonth],
+  );
+  const thisMonthExpense = useMemo(
+    () =>
+      entries
+        .filter(
+          (e) =>
+            e.type === "expense" &&
+            !e.isTransfer &&
+            e.date.slice(0, 7) === thisMonth,
+        )
+        .reduce((s, e) => s + e.amount, 0),
+    [entries, thisMonth],
+  );
+  const savedRate =
+    thisMonthIncome > 0
+      ? Math.round(
+          ((thisMonthIncome - thisMonthExpense) / thisMonthIncome) * 100,
+        )
+      : 0;
 
   // ── Static insights ────────────────────────────────────────────
   const staticInsights = useMemo(() => {
     const list = [];
     const spendByCat = (month) => {
       const map = {};
-      entries.filter((e) => e.type === "expense" && !e.isTransfer && e.date.slice(0, 7) === month).forEach((e) => { map[e.category] = (map[e.category] || 0) + e.amount; });
+      entries
+        .filter(
+          (e) =>
+            e.type === "expense" &&
+            !e.isTransfer &&
+            e.date.slice(0, 7) === month,
+        )
+        .forEach((e) => {
+          map[e.category] = (map[e.category] || 0) + e.amount;
+        });
       return map;
     };
     const thisSpend = spendByCat(thisMonth);
@@ -284,42 +736,93 @@ export default function Insights({
 
     if (lastTotal > 0 && thisTotal > 0) {
       const diff = Math.round(((thisTotal - lastTotal) / lastTotal) * 100);
-      if (Math.abs(diff) >= 10) list.push({ icon: diff > 0 ? "📈" : "📉", text: `Spending is ${Math.abs(diff)}% ${diff > 0 ? "higher" : "lower"} this month vs last.`, type: diff > 0 ? "warn" : "good" });
+      if (Math.abs(diff) >= 10)
+        list.push({
+          icon: diff > 0 ? "📈" : "📉",
+          text: `Spending is ${Math.abs(diff)}% ${diff > 0 ? "higher" : "lower"} this month vs last.`,
+          type: diff > 0 ? "warn" : "good",
+        });
     }
-    new Set([...Object.keys(thisSpend), ...Object.keys(lastSpend)]).forEach((cat) => {
-      const t = thisSpend[cat] || 0, l = lastSpend[cat] || 0;
-      if (l > 0 && t > 0) {
-        const pct = Math.round(((t - l) / l) * 100);
-        if (pct >= 40) list.push({ icon: "⚠️", text: `You spent ${pct}% more on ${cat} this month vs last.`, type: "warn" });
-      }
-    });
+    new Set([...Object.keys(thisSpend), ...Object.keys(lastSpend)]).forEach(
+      (cat) => {
+        const t = thisSpend[cat] || 0,
+          l = lastSpend[cat] || 0;
+        if (l > 0 && t > 0) {
+          const pct = Math.round(((t - l) / l) * 100);
+          if (pct >= 40)
+            list.push({
+              icon: "⚠️",
+              text: `You spent ${pct}% more on ${cat} this month vs last.`,
+              type: "warn",
+            });
+        }
+      },
+    );
     const topCat = Object.entries(thisSpend).sort((a, b) => b[1] - a[1])[0];
-    if (topCat) list.push({ icon: "🏆", text: `Top category: ${topCat[0]} at रु${topCat[1].toLocaleString()}.`, type: "info" });
+    if (topCat)
+      list.push({
+        icon: "🏆",
+        text: `Top category: ${topCat[0]} at रु${topCat[1].toLocaleString()}.`,
+        type: "info",
+      });
     if (thisMonthIncome > 0 && thisTotal > 0) {
-      const rate = Math.round(((thisMonthIncome - thisTotal) / thisMonthIncome) * 100);
-      list.push(rate > 0
-        ? { icon: "💰", text: `You're saving ${rate}% of income this month. Keep it up!`, type: "good" }
-        : { icon: "🚨", text: `You've spent more than you earned this month.`, type: "warn" });
+      const rate = Math.round(
+        ((thisMonthIncome - thisTotal) / thisMonthIncome) * 100,
+      );
+      list.push(
+        rate > 0
+          ? {
+              icon: "💰",
+              text: `You're saving ${rate}% of income this month. Keep it up!`,
+              type: "good",
+            }
+          : {
+              icon: "🚨",
+              text: `You've spent more than you earned this month.`,
+              type: "warn",
+            },
+      );
     }
     const now = new Date();
     const daysPassed = now.getDate();
-    const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - daysPassed;
-    if (thisTotal > 0 && daysPassed > 3) list.push({ icon: "🔮", text: `At current rate, you'll spend ~रु${Math.round(thisTotal + (thisTotal / daysPassed) * daysLeft).toLocaleString()} this month.`, type: "info" });
+    const daysLeft =
+      new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - daysPassed;
+    if (thisTotal > 0 && daysPassed > 3)
+      list.push({
+        icon: "🔮",
+        text: `At current rate, you'll spend ~रु${Math.round(thisTotal + (thisTotal / daysPassed) * daysLeft).toLocaleString()} this month.`,
+        type: "info",
+      });
     return list.slice(0, 6);
   }, [entries, thisMonth, lastMonth, thisMonthIncome]);
 
-  const insightColors = { warn: "rgba(249,115,22,0.12)", good: "rgba(34,197,94,0.12)", info: "rgba(99,102,241,0.1)" };
-  const insightBorders = { warn: "rgba(249,115,22,0.3)", good: "rgba(34,197,94,0.3)", info: "rgba(99,102,241,0.25)" };
+  const insightColors = {
+    warn: "rgba(249,115,22,0.12)",
+    good: "rgba(34,197,94,0.12)",
+    info: "rgba(99,102,241,0.1)",
+  };
+  const insightBorders = {
+    warn: "rgba(249,115,22,0.3)",
+    good: "rgba(34,197,94,0.3)",
+    info: "rgba(99,102,241,0.25)",
+  };
 
-  if (loading) return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "50vh" }}>
-      <p style={{ color: "var(--text-muted)" }}>Loading...</p>
-    </div>
-  );
+  if (loading)
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "50vh",
+        }}
+      >
+        <p style={{ color: "var(--text-muted)" }}>Loading...</p>
+      </div>
+    );
 
   const tabs = [
     { id: "overview", label: "Overview", icon: "💡" },
-    { id: "search", label: "Search", icon: "🔍" },
     { id: "gym", label: "Gym", icon: "🏋️" },
     { id: "currency", label: "Currency", icon: "💱" },
     { id: "ai", label: "AI Chat", icon: "🤖" },
@@ -333,24 +836,45 @@ export default function Insights({
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
         <div>
           <h1 className="page-title">Insights</h1>
-          <p className="page-sub">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</p>
+          <p className="page-sub">
+            {new Date().toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}
+          </p>
         </div>
       </div>
 
       {/* ── Tab bar ── */}
-      <div style={{
-        display: "flex",
-        gap: 4,
-        background: "var(--surface-2)",
-        borderRadius: "var(--radius-md)",
-        padding: 4,
-        border: "1px solid var(--border)",
-      }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 4,
+          background: "var(--surface-2)",
+          borderRadius: "var(--radius-md)",
+          padding: 4,
+          border: "1px solid var(--border)",
+        }}
+      >
         {tabs.map((t) => (
-          <TabButton key={t.id} {...t} active={activeTab === t.id} onClick={setActiveTab} />
+          <TabButton
+            key={t.id}
+            {...t}
+            active={activeTab === t.id}
+            onClick={setActiveTab}
+          />
         ))}
       </div>
 
@@ -359,81 +883,267 @@ export default function Insights({
       ══════════════════════════════════════════ */}
       {activeTab === "overview" && (
         <>
+          {/* Search bar */}
+          <input
+            className="input"
+            placeholder="🔍 Search transactions..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+
+          {/* Search results — only show when searching */}
+          {searchQuery.trim() && (
+            <div className="card" style={{ padding: "12px 16px" }}>
+              {searchResults.length === 0 ? (
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: "var(--text-muted)",
+                    textAlign: "center",
+                  }}
+                >
+                  No results found.
+                </p>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    maxHeight: 300,
+                    overflowY: "auto",
+                  }}
+                >
+                  {searchResults.slice(0, 30).map((e, idx) => (
+                    <div
+                      key={`${e.id}-${idx}`}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "8px 0",
+                        borderBottom: "1px solid var(--border)",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <p
+                          style={{
+                            fontSize: 13,
+                            color: "var(--text)",
+                            fontWeight: 500,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {e.note || e.category}
+                        </p>
+                        <p
+                          style={{
+                            fontSize: 11,
+                            color: "var(--text-muted)",
+                            marginTop: 1,
+                          }}
+                        >
+                          {e.category} ·{" "}
+                          {new Date(e.date + "T00:00:00").toLocaleDateString(
+                            "en-US",
+                            { month: "short", day: "numeric" },
+                          )}
+                        </p>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                          marginLeft: 8,
+                          color:
+                            e.type === "income" ? "var(--green)" : "var(--red)",
+                        }}
+                      >
+                        {e.type === "income" ? "+" : "−"}रु
+                        {e.amount.toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Stats bar */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            background: "var(--surface)",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--border)",
-            overflow: "hidden",
-          }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 1fr",
+              background: "var(--surface)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border)",
+              overflow: "hidden",
+            }}
+          >
             {[
-              { label: "Income", value: thisMonthIncome, color: "var(--green)", prefix: "रु", suffix: "k", big: true },
-              { label: "Expenses", value: thisMonthExpense, color: "var(--red)", prefix: "रु", suffix: "k", big: true },
-              { label: "Saved", value: savedRate, color: savedRate >= 0 ? "var(--accent)" : "var(--red)", suffix: "%", big: false },
+              {
+                label: "Income",
+                value: thisMonthIncome,
+                color: "var(--green)",
+                prefix: "रु",
+                big: true,
+              },
+              {
+                label: "Expenses",
+                value: thisMonthExpense,
+                color: "var(--red)",
+                prefix: "रु",
+                big: true,
+              },
+              {
+                label: "Saved",
+                value: savedRate,
+                color: savedRate >= 0 ? "var(--accent)" : "var(--red)",
+                suffix: "%",
+                big: false,
+              },
             ].map((s, i) => (
-              <div key={s.label} style={{
-                padding: "16px 10px", textAlign: "center",
-                borderRight: i < 2 ? "1px solid var(--border)" : "none",
-              }}>
-                <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{s.label}</p>
-                <p style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'Syne', sans-serif", lineHeight: 1 }}>
+              <div
+                key={s.label}
+                style={{
+                  padding: "16px 10px",
+                  textAlign: "center",
+                  borderRight: i < 2 ? "1px solid var(--border)" : "none",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: 10,
+                    color: "var(--text-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    marginBottom: 4,
+                  }}
+                >
+                  {s.label}
+                </p>
+                <p
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 800,
+                    color: s.color,
+                    lineHeight: 1,
+                  }}
+                >
                   {s.prefix || ""}
-                  {s.big
-                    ? s.value >= 1000 ? `${(s.value / 1000).toFixed(1)}k` : s.value.toLocaleString()
-                    : s.value}
+                  {s.big ? s.value.toLocaleString() : s.value}
                   {s.suffix || ""}
                 </p>
               </div>
             ))}
           </div>
 
-          {/* Finance Streak */}
-          <div className="card" style={{ padding: "16px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 10 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>🔥 Logging Streak</span>
+          {/* Charts card with tabs */}
+         
+            <div
+              style={{
+                display: "flex",
+                gap: 0,
+                marginBottom: 16,
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              {[
+                { id: "networth", label: "Net Worth" },
+                { id: "incomevexp", label: "Income vs Expense" },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setChartView(t.id)}
+                  style={{
+                    flex: 1,
+                    padding: "10px 0",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: "none",
+                    cursor: "pointer",
+                    background: "transparent",
+                    color:
+                      chartView === t.id
+                        ? "var(--accent)"
+                        : "var(--text-muted)",
+                    borderBottom:
+                      chartView === t.id
+                        ? "2px solid var(--accent)"
+                        : "2px solid transparent",
+                    marginBottom: "-1px",
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: "50%",
-                background: streak > 0 ? "rgba(249,115,22,0.12)" : "var(--surface-2)",
-                border: `2px solid ${streak > 0 ? "rgba(249,115,22,0.4)" : "var(--border)"}`,
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                flexShrink: 0,
-              }}>
-                <span style={{ fontSize: 18, fontWeight: 800, color: streak > 0 ? "#f97316" : "var(--text-muted)", lineHeight: 1 }}>{streak}</span>
-                <span style={{ fontSize: 8, color: "var(--text-muted)", textTransform: "uppercase" }}>days</span>
+            {chartView === "networth" && (
+              <NetWorthChart entries={entries} accounts={accounts} />
+            )}
+            {chartView === "incomevexp" && (
+               <div className="card">
+              <IncomeExpenseChart entries={entries} />
               </div>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
-                  {streak === 0 ? "No streak yet" : streak === 1 ? "1 day streak!" : `${streak} day streak!`}
-                </p>
-                <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>
-                  {streak === 0 ? "Log an expense today to start." : streak < 7 ? "Keep logging daily to build your habit." : streak < 30 ? "Great consistency! Keep it going." : "Incredible discipline! You're a pro."}
-                </p>
-              </div>
-            </div>
-          </div>
+            )}
+          
+          <ChartJsLoader />
 
           {/* Quick Insights */}
           <div className="card">
-            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 12 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>💡 Quick Insights</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                marginBottom: 12,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "var(--text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                }}
+              >
+                💡 Quick Insights
+              </span>
             </div>
             {staticInsights.length === 0 ? (
-              <p className="empty-msg">Not enough data yet. Add more transactions.</p>
+              <p className="empty-msg">
+                Not enough data yet. Add more transactions.
+              </p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {staticInsights.map((ins, i) => (
-                  <div key={i} style={{
-                    display: "flex", alignItems: "flex-start", gap: 10,
-                    padding: "10px 12px", borderRadius: "var(--radius-sm)",
-                    background: insightColors[ins.type],
-                    border: `1px solid ${insightBorders[ins.type]}`,
-                  }}>
-                    <span style={{ fontSize: 15, flexShrink: 0 }}>{ins.icon}</span>
-                    <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5 }}>{ins.text}</p>
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      padding: "10px 12px",
+                      borderRadius: "var(--radius-sm)",
+                      background: insightColors[ins.type],
+                      border: `1px solid ${insightBorders[ins.type]}`,
+                    }}
+                  >
+                    <span style={{ fontSize: 15, flexShrink: 0 }}>
+                      {ins.icon}
+                    </span>
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: "var(--text)",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {ins.text}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -447,7 +1157,9 @@ export default function Insights({
       ══════════════════════════════════════════ */}
       {activeTab === "search" && (
         <div className="card">
-          <h2 className="card-title" style={{ marginBottom: 14 }}>🔍 Search Transactions</h2>
+          <h2 className="card-title" style={{ marginBottom: 14 }}>
+            🔍 Search Transactions
+          </h2>
           <input
             className="input"
             placeholder="Search by note, category, amount..."
@@ -455,61 +1167,224 @@ export default function Insights({
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ marginBottom: 10 }}
           />
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-            <select className="input" style={{ flex: 1, minWidth: 100 }} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              marginBottom: 10,
+            }}
+          >
+            <select
+              className="input"
+              style={{ flex: 1, minWidth: 100 }}
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+            >
               <option value="all">All types</option>
               <option value="expense">Expense</option>
               <option value="income">Income</option>
             </select>
-            <select className="input" style={{ flex: 1, minWidth: 120 }} value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+            <select
+              className="input"
+              style={{ flex: 1, minWidth: 120 }}
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+            >
               <option value="all">All categories</option>
-              {[...expCats, ...incCats].map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+              {[...expCats, ...incCats].map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
             </select>
-            <select className="input" style={{ flex: 1, minWidth: 100 }} value={filterPeriod} onChange={(e) => setFilterPeriod(e.target.value)}>
+            <select
+              className="input"
+              style={{ flex: 1, minWidth: 100 }}
+              value={filterPeriod}
+              onChange={(e) => setFilterPeriod(e.target.value)}
+            >
               <option value="all">All time</option>
               <option value="today">Today</option>
               <option value="week">This week</option>
               <option value="month">This month</option>
               <option value="last3">Last 3 months</option>
             </select>
-            {(searchQuery || filterType !== "all" || filterCategory !== "all" || filterPeriod !== "all") && (
-              <button onClick={() => { setSearchQuery(""); setFilterType("all"); setFilterCategory("all"); setFilterPeriod("all"); }}
-                style={{ background: "rgba(239,68,68,0.08)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "var(--radius-sm)", padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+            {(searchQuery ||
+              filterType !== "all" ||
+              filterCategory !== "all" ||
+              filterPeriod !== "all") && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterType("all");
+                  setFilterCategory("all");
+                  setFilterPeriod("all");
+                }}
+                style={{
+                  background: "rgba(239,68,68,0.08)",
+                  color: "var(--red)",
+                  border: "1px solid rgba(239,68,68,0.2)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "8px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 ✕ Clear
               </button>
             )}
           </div>
 
-          {(searchQuery || filterType !== "all" || filterCategory !== "all" || filterPeriod !== "all") ? (
+          {searchQuery ||
+          filterType !== "all" ||
+          filterCategory !== "all" ||
+          filterPeriod !== "all" ? (
             <>
-              <p style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>
-                {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
-                {searchResults.length > 0 && <span style={{ marginLeft: 8, color: "var(--accent)" }}>Total: रु{searchResults.reduce((s, e) => s + e.amount, 0).toLocaleString()}</span>}
+              <p
+                style={{
+                  fontSize: 11,
+                  color: "var(--text-muted)",
+                  marginBottom: 8,
+                }}
+              >
+                {searchResults.length} result
+                {searchResults.length !== 1 ? "s" : ""}
+                {searchResults.length > 0 && (
+                  <span style={{ marginLeft: 8, color: "var(--accent)" }}>
+                    Total: रु
+                    {searchResults
+                      .reduce((s, e) => s + e.amount, 0)
+                      .toLocaleString()}
+                  </span>
+                )}
               </p>
               {searchResults.length === 0 ? (
-                <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", padding: "20px 0" }}>No transactions found.</p>
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: "var(--text-muted)",
+                    textAlign: "center",
+                    padding: "20px 0",
+                  }}
+                >
+                  No transactions found.
+                </p>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", maxHeight: 400, overflowY: "auto" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    maxHeight: 400,
+                    overflowY: "auto",
+                  }}
+                >
                   {searchResults.slice(0, 50).map((e, idx) => (
-                    <div key={`${e.id}-${idx}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: [...expCats, ...incCats].find((c) => c.name === e.category)?.color || "#6366f1" }} />
+                    <div
+                      key={`${e.id}-${idx}`}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "9px 0",
+                        borderBottom: "1px solid var(--border)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          minWidth: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            flexShrink: 0,
+                            background:
+                              [...expCats, ...incCats].find(
+                                (c) => c.name === e.category,
+                              )?.color || "#6366f1",
+                          }}
+                        />
                         <div style={{ minWidth: 0 }}>
-                          <p style={{ fontSize: 13, color: "var(--text)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.note || e.category}</p>
-                          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{e.category} · {new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+                          <p
+                            style={{
+                              fontSize: 13,
+                              color: "var(--text)",
+                              fontWeight: 500,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {e.note || e.category}
+                          </p>
+                          <p
+                            style={{
+                              fontSize: 11,
+                              color: "var(--text-muted)",
+                              marginTop: 1,
+                            }}
+                          >
+                            {e.category} ·{" "}
+                            {new Date(e.date + "T00:00:00").toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              },
+                            )}
+                          </p>
                         </div>
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, flexShrink: 0, marginLeft: 8, color: e.type === "income" ? "var(--green)" : "var(--red)" }}>
-                        {e.type === "income" ? "+" : "−"}रु{e.amount.toLocaleString()}
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                          marginLeft: 8,
+                          color:
+                            e.type === "income" ? "var(--green)" : "var(--red)",
+                        }}
+                      >
+                        {e.type === "income" ? "+" : "−"}रु
+                        {e.amount.toLocaleString()}
                       </span>
                     </div>
                   ))}
-                  {searchResults.length > 50 && <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "10px 0" }}>Showing 50 of {searchResults.length} results</p>}
+                  {searchResults.length > 50 && (
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: "var(--text-muted)",
+                        textAlign: "center",
+                        padding: "10px 0",
+                      }}
+                    >
+                      Showing 50 of {searchResults.length} results
+                    </p>
+                  )}
                 </div>
               )}
             </>
           ) : (
-            <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "16px 0" }}>Use filters above to search all your transactions</p>
+            <p
+              style={{
+                fontSize: 12,
+                color: "var(--text-muted)",
+                textAlign: "center",
+                padding: "16px 0",
+              }}
+            >
+              Use filters above to search all your transactions
+            </p>
           )}
         </div>
       )}
@@ -519,66 +1394,240 @@ export default function Insights({
       ══════════════════════════════════════════ */}
       {activeTab === "gym" && (
         <div className="card">
-          <h2 className="card-title" style={{ marginBottom: 14 }}>🏋️ Gym Attendance</h2>
+          <h2 className="card-title" style={{ marginBottom: 14 }}>
+            🏋️ Gym Attendance
+          </h2>
 
           {/* Check-in button */}
           <button
             onClick={() => handleGymToggle(today)}
             disabled={gymSaving}
             style={{
-              width: "100%", padding: "13px", borderRadius: "var(--radius-md)",
-              border: isTodayAttended ? "1.5px solid rgba(99,102,241,0.4)" : "1.5px solid var(--border)",
-              background: isTodayAttended ? "rgba(99,102,241,0.12)" : "var(--surface-2)",
+              width: "100%",
+              padding: "13px",
+              borderRadius: "var(--radius-md)",
+              border: isTodayAttended
+                ? "1.5px solid rgba(99,102,241,0.4)"
+                : "1.5px solid var(--border)",
+              background: isTodayAttended
+                ? "rgba(99,102,241,0.12)"
+                : "var(--surface-2)",
               color: isTodayAttended ? "var(--accent)" : "var(--text-muted)",
-              fontSize: 14, fontWeight: 700,
+              fontSize: 14,
+              fontWeight: 700,
               cursor: gymSaving ? "default" : "pointer",
               marginBottom: 14,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
               transition: "all 0.2s",
             }}
           >
             <span style={{ fontSize: 18 }}>{isTodayAttended ? "✓" : "+"}</span>
-            {gymSaving ? "Saving..." : isTodayAttended ? "Attended today" : "Mark today as attended"}
+            {gymSaving
+              ? "Saving..."
+              : isTodayAttended
+                ? "Attended today"
+                : "Mark today as attended"}
           </button>
 
           {/* Stats row */}
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             {[
-              { label: "This month", value: gymMonthCount, color: "var(--accent)", sub: `${gymRate}% rate` },
-              { label: "Streak", value: gymStreak, color: gymStreak >= 3 ? "var(--green)" : "var(--text)", sub: gymStreak === 1 ? "day" : "days" },
-              { label: "All time", value: gymTotalAll, color: "var(--text)", sub: "sessions" },
+              {
+                label: "This month",
+                value: gymMonthCount,
+                color: "var(--accent)",
+                sub: `${gymRate}% rate`,
+              },
+              {
+                label: "Streak",
+                value: gymStreak,
+                color: gymStreak >= 3 ? "var(--green)" : "var(--text)",
+                sub: gymStreak === 1 ? "day" : "days",
+              },
+              {
+                label: "All time",
+                value: gymTotalAll,
+                color: "var(--text)",
+                sub: "sessions",
+              },
             ].map((s) => (
-              <div key={s.label} style={{ flex: 1, padding: "10px 8px", textAlign: "center", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
-                <p style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{s.label}</p>
-                <p style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'Syne', sans-serif", lineHeight: 1.1 }}>{s.value}</p>
-                {s.sub && <p style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 2 }}>{s.sub}</p>}
+              <div
+                key={s.label}
+                style={{
+                  flex: 1,
+                  padding: "10px 8px",
+                  textAlign: "center",
+                  background: "var(--surface-2)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: 9,
+                    color: "var(--text-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    marginBottom: 3,
+                  }}
+                >
+                  {s.label}
+                </p>
+                <p
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 800,
+                    color: s.color,
+                    fontFamily: "'Syne', sans-serif",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {s.value}
+                </p>
+                {s.sub && (
+                  <p
+                    style={{
+                      fontSize: 9,
+                      color: "var(--text-muted)",
+                      marginTop: 2,
+                    }}
+                  >
+                    {s.sub}
+                  </p>
+                )}
               </div>
             ))}
           </div>
 
           {/* Calendar nav */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{gymMonthLabel}</span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 8,
+            }}
+          >
+            <span
+              style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}
+            >
+              {gymMonthLabel}
+            </span>
             <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => changeGymMonth(-1)} style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
-              <button onClick={() => changeGymMonth(1)} disabled={gymIsCurrentMonth} style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)", fontSize: 15, cursor: gymIsCurrentMonth ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: gymIsCurrentMonth ? 0.3 : 1 }}>›</button>
+              <button
+                onClick={() => changeGymMonth(-1)}
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: "50%",
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  fontSize: 15,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ‹
+              </button>
+              <button
+                onClick={() => changeGymMonth(1)}
+                disabled={gymIsCurrentMonth}
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: "50%",
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  fontSize: 15,
+                  cursor: gymIsCurrentMonth ? "default" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: gymIsCurrentMonth ? 0.3 : 1,
+                }}
+              >
+                ›
+              </button>
             </div>
           </div>
 
           {gymLoading ? (
-            <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "20px 0" }}>Loading...</p>
+            <p
+              style={{
+                fontSize: 12,
+                color: "var(--text-muted)",
+                textAlign: "center",
+                padding: "20px 0",
+              }}
+            >
+              Loading...
+            </p>
           ) : (
-            <GymCalendar year={gymViewYear} month={gymViewMonth} attended={gymAttended} today={todayObj} onToggle={handleGymToggle} />
+            <GymCalendar
+              year={gymViewYear}
+              month={gymViewMonth}
+              attended={gymAttended}
+              today={todayObj}
+              onToggle={handleGymToggle}
+            />
           )}
 
           {/* Progress bar */}
           <div style={{ marginTop: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{gymMonthCount} of {gymPassedDays} days</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: gymRate >= 70 ? "var(--green)" : gymRate >= 40 ? "var(--accent)" : "var(--red)" }}>{gymRate}%</span>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: 5,
+              }}
+            >
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                {gymMonthCount} of {gymPassedDays} days
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color:
+                    gymRate >= 70
+                      ? "var(--green)"
+                      : gymRate >= 40
+                        ? "var(--accent)"
+                        : "var(--red)",
+                }}
+              >
+                {gymRate}%
+              </span>
             </div>
-            <div style={{ height: 5, borderRadius: 99, background: "var(--surface-2)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${gymRate}%`, borderRadius: 99, background: gymRate >= 70 ? "var(--green)" : gymRate >= 40 ? "var(--accent)" : "var(--red)", transition: "width 0.4s ease" }} />
+            <div
+              style={{
+                height: 5,
+                borderRadius: 99,
+                background: "var(--surface-2)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${gymRate}%`,
+                  borderRadius: 99,
+                  background:
+                    gymRate >= 70
+                      ? "var(--green)"
+                      : gymRate >= 40
+                        ? "var(--accent)"
+                        : "var(--red)",
+                  transition: "width 0.4s ease",
+                }}
+              />
             </div>
           </div>
         </div>
@@ -598,45 +1647,168 @@ export default function Insights({
       ══════════════════════════════════════════ */}
       {activeTab === "ai" && (
         <div className="card">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 16,
+            }}
+          >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, var(--accent), #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>🤖</div>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 18,
+                  flexShrink: 0,
+                }}
+              >
+                🤖
+              </div>
               <div>
-                <h2 className="card-title" style={{ marginBottom: 0 }}>Nexus AI</h2>
-                <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Knows all your data · Can take actions · Remembers your chats</p>
+                <h2 className="card-title" style={{ marginBottom: 0 }}>
+                  Nexus AI
+                </h2>
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: "var(--text-muted)",
+                    marginTop: 2,
+                  }}
+                >
+                  Knows all your data · Can take actions · Remembers your chats
+                </p>
               </div>
             </div>
-            <button onClick={ai?.clearChat} style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "5px 10px", fontSize: 11, color: "var(--text-muted)", cursor: "pointer" }}>
+            <button
+              onClick={ai?.clearChat}
+              style={{
+                background: "none",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                padding: "5px 10px",
+                fontSize: 11,
+                color: "var(--text-muted)",
+                cursor: "pointer",
+              }}
+            >
               Clear
             </button>
           </div>
 
           {/* Chat window */}
-          <div style={{ background: "var(--surface-2)", borderRadius: "var(--radius-md)", padding: 14, marginBottom: 12, height: 400, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div
+            style={{
+              background: "var(--surface-2)",
+              borderRadius: "var(--radius-md)",
+              padding: 14,
+              marginBottom: 12,
+              height: 400,
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
             {ai?.messages.map((msg, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", gap: 8 }}>
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    msg.role === "user" ? "flex-end" : "flex-start",
+                  gap: 8,
+                }}
+              >
                 {msg.role === "assistant" && (
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginTop: 2, background: "linear-gradient(135deg, var(--accent), #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>🤖</div>
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      marginTop: 2,
+                      background:
+                        "linear-gradient(135deg, var(--accent), #8b5cf6)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 13,
+                    }}
+                  >
+                    🤖
+                  </div>
                 )}
-                <div style={{
-                  maxWidth: "80%", padding: "10px 14px",
-                  borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                  background: msg.role === "user" ? "var(--accent)" : "var(--surface)",
-                  color: msg.role === "user" ? "#fff" : "var(--text)",
-                  fontSize: 13, lineHeight: 1.6,
-                  border: msg.role === "assistant" ? "1px solid var(--border)" : "none",
-                  whiteSpace: "pre-wrap",
-                }}>
+                <div
+                  style={{
+                    maxWidth: "80%",
+                    padding: "10px 14px",
+                    borderRadius:
+                      msg.role === "user"
+                        ? "16px 16px 4px 16px"
+                        : "16px 16px 16px 4px",
+                    background:
+                      msg.role === "user" ? "var(--accent)" : "var(--surface)",
+                    color: msg.role === "user" ? "#fff" : "var(--text)",
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    border:
+                      msg.role === "assistant"
+                        ? "1px solid var(--border)"
+                        : "none",
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
                   {msg.content}
                 </div>
               </div>
             ))}
             {ai?.chatLoading && (
               <div style={{ display: "flex", gap: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg, var(--accent), #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>🤖</div>
-                <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: "var(--surface)", border: "1px solid var(--border)", display: "flex", gap: 5, alignItems: "center" }}>
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    background:
+                      "linear-gradient(135deg, var(--accent), #8b5cf6)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 13,
+                  }}
+                >
+                  🤖
+                </div>
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "16px 16px 16px 4px",
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    display: "flex",
+                    gap: 5,
+                    alignItems: "center",
+                  }}
+                >
                   {[0, 1, 2].map((i) => (
-                    <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: `aiDot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+                    <div
+                      key={i}
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: "var(--accent)",
+                        animation: `aiDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+                      }}
+                    />
                   ))}
                 </div>
               </div>
@@ -645,10 +1817,36 @@ export default function Insights({
           </div>
 
           {/* Quick prompts */}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-            {["What's my top expense?", "How much did I save?", "Compare months", "Set food budget 3000"].map((p) => (
-              <button key={p} onClick={() => { ai?.sendMessage(p); }}
-                style={{ fontSize: 11, padding: "5px 10px", borderRadius: 99, background: "rgba(99,102,241,0.1)", color: "var(--accent)", border: "1px solid rgba(99,102,241,0.2)", cursor: "pointer", whiteSpace: "nowrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+              marginBottom: 10,
+            }}
+          >
+            {[
+              "What's my top expense?",
+              "How much did I save?",
+              "Compare months",
+              "Set food budget 3000",
+            ].map((p) => (
+              <button
+                key={p}
+                onClick={() => {
+                  ai?.sendMessage(p);
+                }}
+                style={{
+                  fontSize: 11,
+                  padding: "5px 10px",
+                  borderRadius: 99,
+                  background: "rgba(99,102,241,0.1)",
+                  color: "var(--accent)",
+                  border: "1px solid rgba(99,102,241,0.2)",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {p}
               </button>
             ))}
@@ -661,21 +1859,43 @@ export default function Insights({
               placeholder="Ask anything or give a command..."
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { ai?.sendMessage(chatInput); setChatInput(""); } }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  ai?.sendMessage(chatInput);
+                  setChatInput("");
+                }
+              }}
               disabled={ai?.chatLoading}
               style={{ flex: 1, minWidth: 0 }}
             />
             <button
-              onClick={() => { ai?.sendMessage(chatInput); setChatInput(""); }}
+              onClick={() => {
+                ai?.sendMessage(chatInput);
+                setChatInput("");
+              }}
               disabled={ai?.chatLoading || !chatInput.trim()}
               className="btn-primary"
-              style={{ width: "auto", flexShrink: 0, padding: "10px 20px", whiteSpace: "nowrap", opacity: !chatInput.trim() || ai?.chatLoading ? 0.5 : 1 }}
+              style={{
+                width: "auto",
+                flexShrink: 0,
+                padding: "10px 20px",
+                whiteSpace: "nowrap",
+                opacity: !chatInput.trim() || ai?.chatLoading ? 0.5 : 1,
+              }}
             >
               {ai?.chatLoading ? "..." : "Send"}
             </button>
           </div>
-          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, textAlign: "center" }}>
-            Nexus AI knows your transactions, budgets and goals · Chat history saved
+          <p
+            style={{
+              fontSize: 11,
+              color: "var(--text-muted)",
+              marginTop: 8,
+              textAlign: "center",
+            }}
+          >
+            Nexus AI knows your transactions, budgets and goals · Chat history
+            saved
           </p>
         </div>
       )}
