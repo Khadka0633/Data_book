@@ -21,12 +21,11 @@ const TABS = [
 ];
 
 function fetchFootball(path) {
-  return fetch(`${BASE}${path}`, {
-    headers: { "X-Auth-Token": API_KEY },
-  }).then((r) => {
-    if (!r.ok) throw new Error(`API error ${r.status}`);
-    return r.json();
-  });
+  return fetch(`/api/football?path=${encodeURIComponent(path.slice(1))}`)
+    .then(r => {
+      if (!r.ok) throw new Error(`API error ${r.status}`);
+      return r.json();
+    });
 }
 
 function formatDate(dateStr) {
