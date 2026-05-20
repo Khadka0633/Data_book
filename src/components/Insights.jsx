@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import pb from "../pb";
 import MultiCurrencyWidget from "./MultiCurrencyWidget";
+import SportsTab from "./Sportstab";
 
 // ── Gym helpers ────────────────────────────────────────────────────
 function getDaysInMonth(year, month) {
@@ -826,6 +827,7 @@ export default function Insights({
     { id: "gym", label: "Gym", icon: "🏋️" },
     { id: "currency", label: "Currency", icon: "💱" },
     { id: "ai", label: "AI Chat", icon: "🤖" },
+    { id: "sports", label: "Sports", icon: "⚽" },
   ];
 
   return (
@@ -1151,6 +1153,9 @@ export default function Insights({
           </div>
         </>
       )}
+
+
+      {activeTab === "sports" && <SportsTab />}
 
       {/* ══════════════════════════════════════════
           TAB: SEARCH
