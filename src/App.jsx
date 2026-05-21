@@ -296,7 +296,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={(tab) => {
           setActiveTab(tab);
-          setAlertsDismissed(false);
+         
         }}
         user={user}
         onLogout={handleLogout}
