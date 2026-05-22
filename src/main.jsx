@@ -1,18 +1,17 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.jsx'
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./index.css";
+import App from "./App.jsx";
 
-// ── Register Service Worker ────────────────────────────────────────
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then((reg) => console.log("SW registered:", reg.scope))
-      .catch((err) => console.warn("SW registration failed:", err));
-  });
-}
+// ── Service Worker ─────────────────────────────────────────────────
+// vite-plugin-pwa registers the SW automatically during build.
+// No manual registration needed here.
+// If you want to handle SW update events (e.g. show "New version available"):
+//
+// import { registerSW } from 'virtual:pwa-register'
+// registerSW({
+//   onNeedRefresh() { /* show update prompt */ },
+//   onOfflineReady() { console.log('App ready to work offline') },
+// })
 
-createRoot(document.getElementById('root')).render(
-  <App />
-)
+createRoot(document.getElementById("root")).render(<App />);
