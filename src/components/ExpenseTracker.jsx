@@ -1,10 +1,23 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import pb from "../pb";
-import EntryForm from "./EntryForm";
-import CategoryManager from "./CategoryManager";
+import { db } from "../utils/db";
 import TransferPage from "./TransferPage";
-import EditTransferPage from "./EditTransferPage";
+import NumericKeypad from "./NumericKeypad";
 import CategoryHistoryModal from "./CategoryHistoryModal";
+import EditTransferPage from "./EditTransferPage";
+import CategoryManager from "./CategoryManager";
+
+function ChartJsLoader() {
+  useEffect(() => {
+    if (window.Chart) return;
+    const script = document.createElement("script");
+    script.src =
+      "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
+    script.async = true;
+    document.head.appendChild(script);
+  }, []);
+  return null;
+}
 
 function useNoteSuggestions(entries, form) {
   const [suggestions, setSuggestions] = useState([]);
@@ -33,6 +46,30 @@ function useNoteSuggestions(entries, form) {
     setShowSuggestions(matches.length > 0);
   }, [form.note, form.type, form.category, entries]);
   return { suggestions, showSuggestions, setShowSuggestions };
+}
+
+const CAT_COLORS = [
+  "#6366f1",
+  "#22c55e",
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#06b6d4",
+  "#8b5cf6",
+  "#ec4899",
+  "#14b8a6",
+  "#f43f5e",
+  "#84cc16",
+  "#0ea5e9",
+  "#a855f7",
+  "#fb923c",
+  "#10b981",
+];
+function getRandomColor(existing = []) {
+  const unused = CAT_COLORS.filter((c) => !existing.includes(c));
+  return (unused.length > 0 ? unused : CAT_COLORS)[
+    Math.floor(Math.random() * (unused.length || CAT_COLORS.length))
+  ];
 }
 
 function LoadingScreen() {
@@ -68,6 +105,7 @@ export default function ExpenseTracker({
   entries,
   onEntriesChange,
   ai,
+  refreshPending, // ← from App.jsx, updates banner count
 }) {
   const today = new Date().toISOString().split("T")[0];
   const [loading, setLoading] = useState(true);
@@ -85,6 +123,7 @@ export default function ExpenseTracker({
   const [filterDate, setFilterDate] = useState(today);
   const [confirmId, setConfirmId] = useState(null);
   const [editEntry, setEditEntry] = useState(null);
+  const [catModal, setCatModal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [catHistory, setCatHistory] = useState(null);
   const hasLoaded = useRef(false);
@@ -93,11 +132,16 @@ export default function ExpenseTracker({
   const [editTransfer, setEditTransfer] = useState(null);
   const [showTransferPage, setShowTransferPage] = useState(false);
 
+  const [showAiCatBadge, setShowAiCatBadge] = useState(false);
+  const [showCatPicker, setShowCatPicker] = useState(false);
+  const [showAccPicker, setShowAccPicker] = useState(false);
+
   const loadData = useCallback(async () => {
     if (hasLoaded.current) return;
     hasLoaded.current = true;
     setLoading(true);
     try {
+      // Categories use pb directly — small data, not queued offline
       const [expCatsRes, incCatsRes] = await Promise.all([
         pb
           .collection("expense_categories")
@@ -115,7 +159,6 @@ export default function ExpenseTracker({
       }));
     } catch (err) {
       console.error("Failed to load categories:", err);
-      // FIX: reset ref on failure so retry is possible
       hasLoaded.current = false;
     } finally {
       setLoading(false);
@@ -131,7 +174,6 @@ export default function ExpenseTracker({
       setForm((f) => ({ ...f, accountId: accounts[0].id }));
   }, [accounts]);
 
-  // FIX: combined scroll lock effect for form and transfer pages
   useEffect(() => {
     const scrollEl = document.querySelector(".main-content");
     if (showForm || showTransferPage || editTransfer) {
@@ -144,10 +186,54 @@ export default function ExpenseTracker({
     };
   }, [showForm, showTransferPage, editTransfer]);
 
+  useEffect(() => {
+    const isOpen = showAccPicker || showCatPicker;
+    const scrollEl = document.querySelector(".main-content");
+    if (isOpen) {
+      if (scrollEl) scrollEl.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+    } else {
+      if (scrollEl) scrollEl.style.overflow = "";
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    }
+    return () => {
+      if (scrollEl) scrollEl.style.overflow = "";
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    };
+  }, [showAccPicker, showCatPicker]);
+
+  useEffect(() => {
+    if (!ai || !form.note || form.note.trim().length < 3) {
+      setShowAiCatBadge(false);
+      return;
+    }
+    ai.suggestCategory(form.note, form.type);
+    setShowAiCatBadge(false);
+  }, [form.note, form.type]);
+
+  useEffect(() => {
+    if (ai?.catSuggestion && showForm) setShowAiCatBadge(true);
+  }, [ai?.catSuggestion, showForm]);
+
+  const applyAiCategory = () => {
+    if (!ai?.catSuggestion) return;
+    setForm((f) => ({ ...f, category: ai.catSuggestion }));
+    setShowAiCatBadge(false);
+    ai.clearCatSuggestion();
+  };
+
+  const currentCats = form.type === "expense" ? expCats : incCats;
   const getCatColor = (category, type) =>
     (type === "expense" ? expCats : incCats).find((c) => c.name === category)
       ?.color || "#94a3b8";
 
+  // Categories use pb directly — not queued for offline
   const handleAddCat = async (type, cat) => {
     const collection =
       type === "expense" ? "expense_categories" : "income_categories";
@@ -168,10 +254,15 @@ export default function ExpenseTracker({
     else setIncCats((prev) => prev.filter((c) => c.name !== name));
   };
 
+  const handleTypeChange = (t) => {
+    const cats = t === "expense" ? expCats : incCats;
+    setForm((f) => ({ ...f, type: t, category: cats[0]?.name || "" }));
+  };
+
   const closeForm = () => {
     setShowForm(false);
     setEditEntry(null);
-
+    setShowAiCatBadge(false);
     ai?.clearCatSuggestion?.();
     setForm({
       type: "expense",
@@ -210,7 +301,10 @@ export default function ExpenseTracker({
   };
   const monthLabel = new Date(filterDate + "T00:00:00").toLocaleDateString(
     "en-US",
-    { month: "long", year: "numeric" },
+    {
+      month: "long",
+      year: "numeric",
+    },
   );
   const isCurrentMonth = ledgerMonth === today.slice(0, 7);
 
@@ -250,12 +344,13 @@ export default function ExpenseTracker({
       .map((date) => ({ date, entries: groups[date] }));
   }, [entries, ledgerMonth]);
 
+  // ── CREATE / UPDATE — db instead of pb ───────────────────────
   const addEntry = async () => {
     if (!form.amount || isNaN(form.amount) || +form.amount <= 0) return;
     setSaving(true);
     try {
       if (editEntry) {
-        const updated = await pb.collection("entries").update(editEntry, {
+        const updated = await db.update("entries", editEntry, {
           type: form.type,
           amount: +form.amount,
           category: form.category,
@@ -266,7 +361,7 @@ export default function ExpenseTracker({
         });
         onEntriesChange(entries.map((e) => (e.id === editEntry ? updated : e)));
       } else {
-        const created = await pb.collection("entries").create({
+        const created = await db.create("entries", {
           type: form.type,
           amount: +form.amount,
           category: form.category,
@@ -278,6 +373,7 @@ export default function ExpenseTracker({
         });
         onEntriesChange([created, ...entries]);
       }
+      refreshPending?.(); // update offline banner count
       closeForm();
     } catch (err) {
       console.error("Failed to save entry:", err);
@@ -299,6 +395,7 @@ export default function ExpenseTracker({
     });
   };
 
+  // ── DELETE — db instead of pb ─────────────────────────────────
   const handleDelete = async (id) => {
     if (confirmId === id) {
       const entry = entries.find((e) => e.id === id);
@@ -311,15 +408,16 @@ export default function ExpenseTracker({
             e.date === entry.date &&
             e.type !== entry.type,
         );
-        await pb.collection("entries").delete(id);
-        if (paired) await pb.collection("entries").delete(paired.id);
+        await db.delete("entries", id);
+        if (paired) await db.delete("entries", paired.id);
         onEntriesChange(
           entries.filter((e) => e.id !== id && e.id !== paired?.id),
         );
       } else {
-        await pb.collection("entries").delete(id);
+        await db.delete("entries", id);
         onEntriesChange(entries.filter((e) => e.id !== id));
       }
+      refreshPending?.();
       setConfirmId(null);
     } else {
       setConfirmId(id);
@@ -336,12 +434,10 @@ export default function ExpenseTracker({
         entry={editTransfer}
         accounts={accounts}
         entries={entries}
-        // FIX: onSave now receives fromId and toId from the page,
-        // so account changes in the picker are actually persisted.
         onSave={async (amount, note, date, fromId, toId) => {
           const fromName = accounts.find((a) => a.id === fromId)?.name;
           const toName = accounts.find((a) => a.id === toId)?.name;
-          await pb.collection("entries").update(editTransfer.id, {
+          await db.update("entries", editTransfer.id, {
             amount,
             note: note
               ? `Transfer to ${toName}: ${note}`
@@ -349,7 +445,7 @@ export default function ExpenseTracker({
             date,
             accountId: fromId,
           });
-          await pb.collection("entries").update(editTransfer._transferTo.id, {
+          await db.update("entries", editTransfer._transferTo.id, {
             amount,
             note: note
               ? `Transfer from ${fromName}: ${note}`
@@ -366,11 +462,12 @@ export default function ExpenseTracker({
               return e;
             }),
           );
+          refreshPending?.();
           setEditTransfer(null);
         }}
         onDelete={async () => {
-          await pb.collection("entries").delete(editTransfer.id);
-          await pb.collection("entries").delete(editTransfer._transferTo.id);
+          await db.delete("entries", editTransfer.id);
+          await db.delete("entries", editTransfer._transferTo.id);
           onEntriesChange(
             entries.filter(
               (e) =>
@@ -378,6 +475,7 @@ export default function ExpenseTracker({
                 e.id !== editTransfer._transferTo.id,
             ),
           );
+          refreshPending?.();
           setEditTransfer(null);
         }}
         onClose={() => setEditTransfer(null)}
@@ -385,37 +483,745 @@ export default function ExpenseTracker({
     );
   }
 
-  // ── Add / Edit Entry Form ─────────────────────────────────────
-  if (showForm) {
+  // ── Transfer Page ─────────────────────────────────────────────
+  if (showTransferPage) {
     return (
-      <EntryForm
-        form={form}
-        setForm={setForm}
-        editEntry={editEntry}
+      <TransferPage
         accounts={accounts}
-        expCats={expCats}
-        incCats={incCats}
-        suggestions={suggestions}
-        showSuggestions={showSuggestions}
-        setShowSuggestions={setShowSuggestions}
-        ai={ai}
-        saving={saving}
-        onSave={addEntry}
-        onDelete={async () => {
-          await pb.collection("entries").delete(editEntry);
-          onEntriesChange(entries.filter((e) => e.id !== editEntry));
-          closeForm();
+        userId={userId}
+        today={today}
+        entries={entries}
+        onTransferDone={(newEntries) => {
+          onEntriesChange([...newEntries, ...entries]);
+          refreshPending?.();
+          setShowTransferPage(false);
         }}
-        onClose={closeForm}
-        onGoToTransfer={() => {
-          closeForm();
-          setShowTransferPage(true);
+        onClose={() => setShowTransferPage(false)}
+        onSwitchType={(type) => {
+          setShowTransferPage(false);
+          setForm((f) => ({ ...f, type }));
+          setShowForm(true);
         }}
-        onAddCat={handleAddCat}
-        onDeleteCat={handleDeleteCat}
       />
     );
   }
+
+  // ── Add / Edit Entry Form ─────────────────────────────────────
+  if (showForm) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "var(--bg)",
+          zIndex: 50,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        {/* Top bar */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "16px 20px",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <button
+            onClick={closeForm}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--text)",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            ‹ Back
+          </button>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
+            {form.type === "expense" ? "Expense" : "Income"}
+          </span>
+          <div style={{ width: 60 }} />
+        </div>
+
+        {/* Type toggle */}
+        <div
+          style={{ display: "flex", borderBottom: "1px solid var(--border)" }}
+        >
+          {["income", "expense"].map((t) => (
+            <button
+              key={t}
+              onClick={() => handleTypeChange(t)}
+              style={{
+                flex: 1,
+                padding: "14px 0",
+                fontSize: 14,
+                fontWeight: 600,
+                border: "none",
+                cursor: "pointer",
+                background: "transparent",
+                color:
+                  form.type === t
+                    ? t === "expense"
+                      ? "var(--red)"
+                      : "var(--green)"
+                    : "var(--text-muted)",
+                borderBottom:
+                  form.type === t
+                    ? `2px solid ${t === "expense" ? "var(--red)" : "var(--green)"}`
+                    : "2px solid transparent",
+                marginBottom: "-1px",
+              }}
+            >
+              {t === "expense" ? "Expense" : "Income"}
+            </button>
+          ))}
+          <button
+            onClick={() => {
+              closeForm();
+              setShowTransferPage(true);
+            }}
+            style={{
+              flex: 1,
+              padding: "14px 0",
+              fontSize: 14,
+              fontWeight: 600,
+              border: "none",
+              cursor: "pointer",
+              background: "transparent",
+              color: "var(--text-muted)",
+              borderBottom: "2px solid transparent",
+              marginBottom: "-1px",
+            }}
+          >
+            Transfer
+          </button>
+        </div>
+
+        {/* Scrollable fields */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          <div style={{ padding: "0 20px" }}>
+            {/* Amount */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "18px 0",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 15,
+                  color: "var(--text-muted)",
+                  width: 90,
+                  flexShrink: 0,
+                }}
+              >
+                Amount
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: form.amount ? "var(--text)" : "var(--text-muted)",
+                  textAlign: "right",
+                  fontFamily: "'Syne', sans-serif",
+                }}
+              >
+                {form.amount || "0"}
+              </span>
+            </div>
+
+            {/* Date */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "18px 0",
+                borderBottom: "1px solid var(--border)",
+                cursor: "pointer",
+                position: "relative",
+              }}
+              onClick={() =>
+                document.getElementById("date-input").showPicker?.()
+              }
+            >
+              <span
+                style={{
+                  fontSize: 15,
+                  color: "var(--text-muted)",
+                  width: 90,
+                  flexShrink: 0,
+                }}
+              >
+                Date
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 15,
+                  color: "var(--text)",
+                  textAlign: "right",
+                }}
+              >
+                {new Date(form.date + "T00:00:00").toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+              <input
+                id="date-input"
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                style={{
+                  position: "absolute",
+                  opacity: 0,
+                  width: "100%",
+                  height: "100%",
+                  top: 0,
+                  left: 0,
+                  cursor: "pointer",
+                }}
+              />
+            </div>
+
+            {/* Category */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "18px 0",
+                borderBottom: "1px solid var(--border)",
+                cursor: "pointer",
+              }}
+              onClick={() => setShowCatPicker(true)}
+            >
+              <span
+                style={{
+                  fontSize: 15,
+                  color: "var(--text-muted)",
+                  width: 90,
+                  flexShrink: 0,
+                }}
+              >
+                Category
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 15,
+                  color: "var(--text)",
+                  textAlign: "right",
+                }}
+              >
+                {form.category || "Select..."}
+              </span>
+              <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>
+                ›
+              </span>
+            </div>
+
+            {/* Account */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "18px 0",
+                borderBottom: "1px solid var(--border)",
+                cursor: "pointer",
+              }}
+              onClick={() => setShowAccPicker(true)}
+            >
+              <span
+                style={{
+                  fontSize: 15,
+                  color: "var(--text-muted)",
+                  width: 90,
+                  flexShrink: 0,
+                }}
+              >
+                Account
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 15,
+                  color: "var(--text)",
+                  textAlign: "right",
+                }}
+              >
+                {accounts.find((a) => a.id === form.accountId)?.icon}{" "}
+                {accounts.find((a) => a.id === form.accountId)?.name ||
+                  "Select..."}
+              </span>
+              <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>
+                ›
+              </span>
+            </div>
+
+            {/* Note */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "18px 0",
+                borderBottom: "1px solid var(--border)",
+                position: "relative",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 15,
+                  color: "var(--text-muted)",
+                  width: 90,
+                  flexShrink: 0,
+                }}
+              >
+                Note
+              </span>
+              <input
+                type="text"
+                placeholder="Add a note..."
+                value={form.note}
+                onChange={(e) => setForm({ ...form, note: e.target.value })}
+                onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                style={{
+                  flex: 1,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  fontSize: 15,
+                  color: "var(--text)",
+                  fontFamily: "inherit",
+                  textAlign: "right",
+                }}
+              />
+              {showSuggestions && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)",
+                    overflow: "hidden",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+                    marginTop: 4,
+                  }}
+                >
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onMouseDown={() => {
+                        setForm((f) => ({ ...f, note: s }));
+                        setShowSuggestions(false);
+                      }}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "9px 14px",
+                        fontSize: 13,
+                        color: "var(--text)",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        borderBottom:
+                          i < suggestions.length - 1
+                            ? "1px solid var(--border)"
+                            : "none",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = "var(--surface-2)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* AI badge */}
+            {showAiCatBadge &&
+              ai?.catSuggestion &&
+              ai.catSuggestion !== form.category && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginTop: 12,
+                    padding: "7px 10px",
+                    borderRadius: "var(--radius-sm)",
+                    background: "rgba(99,102,241,0.1)",
+                    border: "1px solid rgba(99,102,241,0.3)",
+                  }}
+                >
+                  <span style={{ fontSize: 12 }}>✨</span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-muted)",
+                      flex: 1,
+                    }}
+                  >
+                    AI suggests:{" "}
+                    <strong style={{ color: "var(--accent)" }}>
+                      {ai.catSuggestion}
+                    </strong>
+                  </span>
+                  <button
+                    onClick={applyAiCategory}
+                    style={{
+                      background: "var(--accent)",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "3px 10px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Apply
+                  </button>
+                  <button
+                    onClick={() => setShowAiCatBadge(false)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--text-muted)",
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+          </div>
+        </div>
+
+        {/* Save button */}
+        <div style={{ padding: "12px 20px 20px" }}>
+          <button
+            onClick={addEntry}
+            disabled={saving}
+            style={{
+              width: "100%",
+              padding: "14px",
+              borderRadius: "var(--radius-md)",
+              background:
+                form.type === "expense" ? "var(--red)" : "var(--green)",
+              color: "#fff",
+              border: "none",
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {saving
+              ? "Saving..."
+              : editEntry
+                ? "Save Changes"
+                : `Add ${form.type === "expense" ? "Expense" : "Income"}`}
+          </button>
+          {editEntry && (
+            <button
+              onClick={async () => {
+                await db.delete("entries", editEntry); // ← db not pb
+                onEntriesChange(entries.filter((e) => e.id !== editEntry));
+                refreshPending?.();
+                closeForm();
+              }}
+              style={{
+                width: "100%",
+                padding: "12px",
+                marginTop: 8,
+                borderRadius: "var(--radius-md)",
+                background: "transparent",
+                color: "var(--red)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              🗑 Delete
+            </button>
+          )}
+        </div>
+
+        {/* Keypad */}
+        <div
+          style={{ paddingBottom: "calc(60px + env(safe-area-inset-bottom))" }}
+        >
+          <NumericKeypad
+            value={form.amount}
+            onChange={(val) => setForm({ ...form, amount: val })}
+          />
+        </div>
+
+        {/* Category Manager */}
+        {catModal && (
+          <CategoryManager
+            type={catModal}
+            categories={catModal === "expense" ? expCats : incCats}
+            onAdd={(cat) => handleAddCat(catModal, cat)}
+            onDelete={(name) => handleDeleteCat(catModal, name)}
+            onClose={() => setCatModal(null)}
+          />
+        )}
+
+        {/* Account Picker */}
+        {showAccPicker && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 200,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "flex-end",
+              background: "rgba(0,0,0,0.5)",
+            }}
+            onClick={() => setShowAccPicker(false)}
+            onTouchMove={(e) => e.preventDefault()}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "var(--surface)",
+                borderRadius: "20px 20px 0 0",
+                padding: "20px 16px",
+                paddingBottom: "calc(80px + env(safe-area-inset-bottom))",
+                maxHeight: "80vh",
+                overflowY: "auto",
+              }}
+            >
+              <div
+                style={{
+                  width: 36,
+                  height: 4,
+                  borderRadius: 2,
+                  background: "var(--border)",
+                  margin: "0 auto 16px",
+                }}
+              />
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "var(--text)",
+                  }}
+                >
+                  Account
+                </span>
+                <button
+                  onClick={() => setShowAccPicker(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--text-muted)",
+                    fontSize: 18,
+                    cursor: "pointer",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 1,
+                  background: "var(--border)",
+                }}
+              >
+                {(accounts || []).map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => {
+                      setForm((f) => ({ ...f, accountId: a.id }));
+                      setShowAccPicker(false);
+                    }}
+                    style={{
+                      padding: "18px 8px",
+                      fontSize: 14,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      border: "none",
+                      background:
+                        form.accountId === a.id
+                          ? "rgba(99,102,241,0.15)"
+                          : "var(--surface-2)",
+                      color:
+                        form.accountId === a.id
+                          ? "var(--accent)"
+                          : "var(--text)",
+                      textAlign: "center",
+                    }}
+                  >
+                    {a.icon} {a.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Category Picker */}
+        {showCatPicker && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 200,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "flex-end",
+              background: "rgba(0,0,0,0.5)",
+            }}
+            onClick={() => setShowCatPicker(false)}
+            onTouchMove={(e) => e.preventDefault()}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "var(--surface)",
+                borderRadius: "20px 20px 0 0",
+                padding: "20px 16px",
+                paddingBottom: "calc(80px + env(safe-area-inset-bottom))",
+                maxHeight: "80vh",
+                overflowY: "auto",
+              }}
+            >
+              <div
+                style={{
+                  width: 36,
+                  height: 4,
+                  borderRadius: 2,
+                  background: "var(--border)",
+                  margin: "0 auto 16px",
+                }}
+              />
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "var(--text)",
+                  }}
+                >
+                  Category
+                </span>
+                <button
+                  onClick={() => setShowCatPicker(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--text-muted)",
+                    fontSize: 18,
+                    cursor: "pointer",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 1,
+                  background: "var(--border)",
+                }}
+              >
+                {currentCats.map((c) => (
+                  <button
+                    key={c.id || c.name}
+                    onClick={() => {
+                      setForm((f) => ({ ...f, category: c.name }));
+                      setShowCatPicker(false);
+                    }}
+                    style={{
+                      padding: "18px 8px",
+                      fontSize: 14,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      border: "none",
+                      background:
+                        form.category === c.name
+                          ? "rgba(99,102,241,0.15)"
+                          : "var(--surface-2)",
+                      color:
+                        form.category === c.name
+                          ? "var(--accent)"
+                          : "var(--text)",
+                      textAlign: "center",
+                    }}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setShowCatPicker(false);
+                    setCatModal(form.type);
+                  }}
+                  style={{
+                    padding: "18px 8px",
+                    fontSize: 14,
+                    cursor: "pointer",
+                    border: "none",
+                    background: "var(--surface-2)",
+                    color: "var(--text-muted)",
+                    textAlign: "center",
+                    fontWeight: 500,
+                  }}
+                >
+                  + Add
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // ── Main Ledger View ──────────────────────────────────────────
   return (
     <div className="page" style={{ padding: "16px", gap: 0 }}>
@@ -429,8 +1235,17 @@ export default function ExpenseTracker({
           onClose={() => setCatHistory(null)}
         />
       )}
+      {catModal && (
+        <CategoryManager
+          type={catModal}
+          categories={catModal === "expense" ? expCats : incCats}
+          onAdd={(cat) => handleAddCat(catModal, cat)}
+          onDelete={(name) => handleDeleteCat(catModal, name)}
+          onClose={() => setCatModal(null)}
+        />
+      )}
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -461,7 +1276,7 @@ export default function ExpenseTracker({
         </div>
       </div>
 
-      {/* ── Stats ── */}
+      {/* Stats */}
       <div
         style={{
           display: "flex",
@@ -517,7 +1332,7 @@ export default function ExpenseTracker({
         ))}
       </div>
 
-      {/* ── Ledger header ── */}
+      {/* Ledger header */}
       <div
         style={{
           display: "flex",
@@ -582,7 +1397,7 @@ export default function ExpenseTracker({
         </div>
       </div>
 
-      {/* ── Ledger ── */}
+      {/* Ledger */}
       {monthlyGrouped.length === 0 ? (
         <p
           style={{
@@ -623,20 +1438,16 @@ export default function ExpenseTracker({
                     background: "var(--surface-2)",
                   }}
                 >
-                  <div
-                    style={{ display: "flex", alignItems: "baseline", gap: 6 }}
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "var(--text)",
+                    }}
                   >
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: "var(--text)",
-                      }}
-                    >
-                      {dayName},{" "}
-                      {d.toLocaleDateString("en-US", { day: "numeric" })}
-                    </span>
-                  </div>
+                    {dayName},{" "}
+                    {d.toLocaleDateString("en-US", { day: "numeric" })}
+                  </span>
                   <div style={{ display: "flex", gap: 10, fontSize: 12 }}>
                     {dayIncome > 0 && (
                       <span style={{ color: "var(--green)", fontWeight: 600 }}>
@@ -683,54 +1494,38 @@ export default function ExpenseTracker({
                           (el.currentTarget.style.background = "transparent")
                         }
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                          }}
-                        >
-                          <div>
-                            <p
-                              style={{
-                                fontSize: 13,
-                                color: "var(--text)",
-                                fontWeight: 500,
-                              }}
-                            >
-                              {fromAcc?.name} → {toAcc?.name}
-                            </p>
-                            <p
-                              style={{
-                                fontSize: 11,
-                                color: "var(--text-muted)",
-                                marginTop: 1,
-                              }}
-                            >
-                              Transfer
-                              {e.note
-                                ? ` · ${e.note.replace(`Transfer to ${toAcc?.name}: `, "").replace(`Transfer to ${toAcc?.name}`, "")}`
-                                : ""}
-                            </p>
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                          }}
-                        >
-                          <span
+                        <div>
+                          <p
                             style={{
-                              fontSize: 14,
-                              fontWeight: 700,
-                              color: "var(--text-muted)",
+                              fontSize: 13,
+                              color: "var(--text)",
+                              fontWeight: 500,
                             }}
                           >
-                            रु{e.amount.toLocaleString()}
-                          </span>
+                            {fromAcc?.name} → {toAcc?.name}
+                          </p>
+                          <p
+                            style={{
+                              fontSize: 11,
+                              color: "var(--text-muted)",
+                              marginTop: 1,
+                            }}
+                          >
+                            Transfer
+                            {e.note
+                              ? ` · ${e.note.replace(`Transfer to ${toAcc?.name}: `, "").replace(`Transfer to ${toAcc?.name}`, "")}`
+                              : ""}
+                          </p>
                         </div>
+                        <span
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          रु{e.amount.toLocaleString()}
+                        </span>
                       </div>
                     );
                   }
@@ -763,18 +1558,43 @@ export default function ExpenseTracker({
                         }}
                       >
                         <div style={{ minWidth: 0 }}>
-                          <p
+                          <div
                             style={{
-                              fontSize: 13,
-                              color: "var(--text)",
-                              fontWeight: 500,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
                             }}
                           >
-                            {e.note || e.category}
-                          </p>
+                            <p
+                              style={{
+                                fontSize: 13,
+                                color: "var(--text)",
+                                fontWeight: 500,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {e.note || e.category}
+                            </p>
+                            {/* ⏳ shown on records not yet synced to server */}
+                            {e._isTemp && (
+                              <span
+                                style={{
+                                  fontSize: 9,
+                                  color: "#f97316",
+                                  fontWeight: 600,
+                                  background: "rgba(249,115,22,0.1)",
+                                  border: "1px solid rgba(249,115,22,0.3)",
+                                  borderRadius: 99,
+                                  padding: "1px 6px",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                ⏳
+                              </span>
+                            )}
+                          </div>
                           <p
                             style={{
                               fontSize: 11,

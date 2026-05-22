@@ -9,8 +9,10 @@ import BudgetGoals from "./components/BudgetGoals";
 import Insights from "./components/Insights";
 import Settings from "./components/Settings";
 import TransferModal from "./components/Transfermodal";
+import OfflineBanner from "./components/OfflineBanner";
 import useAI from "./useAI";
 import MultiCurrencyWidget from "./components/MultiCurrencyWidget";
+import { useOffline } from "./utils/useOffline";
 
 // ── Theme ──────────────────────────────────────────────────────────
 function useTheme() {
@@ -105,7 +107,7 @@ export default function App() {
   const [savingsGoals, setSavingsGoals] = useState([]);
   const [appReady, setAppReady] = useState(false);
   const [alertsDismissed, setAlertsDismissed] = useState(false);
-  const [showTransfer, setShowTransfer] = useState(false); // ← Transfer fix
+  const [showTransfer, setShowTransfer] = useState(false);
 
   const { theme, toggle: toggleTheme } = useTheme();
   const userId = user?.id;
@@ -122,7 +124,6 @@ export default function App() {
         incCatsRes,
         budgetsRes,
         goalsRes,
-        billsRes,
       ] = await Promise.all([
         pb
           .collection("entries")
@@ -164,6 +165,18 @@ export default function App() {
     loadShared();
   }, [loadShared]);
 
+  // ── Offline support ────────────────────────────────────────────
+  // When sync completes after coming back online, reload fresh data
+  const { isOffline, isSyncing, pendingOps, refreshPending } = useOffline(
+    useCallback(
+      async (syncResult) => {
+        console.log(`[offline] synced ${syncResult.synced} operations`);
+        await loadShared(); // reload fresh data from server
+      },
+      [loadShared],
+    ),
+  );
+
   // ── Unified AI Brain ───────────────────────────────────────────
   const ai = useAI({
     userId,
@@ -179,7 +192,8 @@ export default function App() {
       setBudgets((p) => (typeof u === "function" ? u(p) : u)),
     onSavingsGoalsChange: (u) =>
       setSavingsGoals((p) => (typeof u === "function" ? u(p) : u)),
-    onBillsChange: (u) => setBills((p) => (typeof u === "function" ? u(p) : u)),
+    onBillsChange: (u) =>
+      setBills((p) => (typeof u === "function" ? u(p) : u)),
   });
 
   // ── Account balances ───────────────────────────────────────────
@@ -219,6 +233,7 @@ export default function App() {
             entries={entries}
             onEntriesChange={setEntries}
             ai={ai}
+            refreshPending={refreshPending}
           />
         );
       case "accounts":
@@ -231,6 +246,7 @@ export default function App() {
             onAccountsChange={setAccounts}
             onEntriesChange={setEntries}
             onShowTransfer={() => setShowTransfer(true)}
+            refreshPending={refreshPending}
           />
         );
       case "charts":
@@ -248,6 +264,7 @@ export default function App() {
             onBudgetsChange={setBudgets}
             onSavingsGoalsChange={setSavingsGoals}
             ai={ai}
+            refreshPending={refreshPending}
           />
         );
       case "insights":
@@ -255,9 +272,11 @@ export default function App() {
           <Insights
             userId={userId}
             entries={entries}
+            accounts={accounts}
             expCats={expCats}
             incCats={incCats}
             ai={ai}
+            refreshPending={refreshPending}
           />
         );
       case "currency":
@@ -278,6 +297,13 @@ export default function App() {
   // ── Render ─────────────────────────────────────────────────────
   return (
     <div className="app-shell">
+      {/* Offline banner — sits above everything */}
+      <OfflineBanner
+        isOffline={isOffline}
+        isSyncing={isSyncing}
+        pendingOps={pendingOps}
+      />
+
       {/* Global Transfer Modal — works from any tab */}
       {showTransfer && (
         <TransferModal
@@ -295,7 +321,6 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={(tab) => {
           setActiveTab(tab);
-          setAlertsDismissed(false);
         }}
         user={user}
         onLogout={handleLogout}
@@ -303,7 +328,14 @@ export default function App() {
         onToggleTheme={toggleTheme}
       />
 
-      <main className="main-content">
+      <main
+        className="main-content"
+        // Push content down when offline banner is visible
+        style={{
+          paddingTop: isOffline || isSyncing || pendingOps > 0 ? 52 : 0,
+          transition: "padding-top 0.2s",
+        }}
+      >
         {appReady ? (
           <>
             {!alertsDismissed && (

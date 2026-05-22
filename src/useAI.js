@@ -159,6 +159,7 @@ export default function useAI({
 
   // ── Proactive alerts ───────────────────────────────────────────
   const [alerts, setAlerts] = useState([]);
+  const [dismissedAlerts, setDismissedAlerts] = useState(new Set());
 
   // ── Auto-categorization ────────────────────────────────────────
   const [catSuggestion, setCatSuggestion]   = useState(null);
@@ -213,7 +214,7 @@ export default function useAI({
       }
     });
 
-    setAlerts(newAlerts.slice(0, 3));
+    setAlerts(newAlerts.filter(a => !dismissedAlerts.has(a.text)).slice(0, 3));
   }, [entries, budgets,  savingsGoals, thisMonth]);
 
   // ── Auto-categorize note ───────────────────────────────────────
@@ -367,15 +368,25 @@ Today is ${today}.`,
     localStorage.removeItem(STORAGE_KEY);
   };
 
+
+const dismissAlert = (text) => {
+  setDismissedAlerts(prev => new Set([...prev, text]));
+  setAlerts(prev => prev.filter(a => a.text !== text));
+};
+
+
+
   return {
     // Chat
     messages,
     chatLoading,
     sendMessage,
     clearChat,
+  
 
     // Proactive alerts
     alerts,
+    dismissAlert,
 
     // Auto-categorization
     catSuggestion,
