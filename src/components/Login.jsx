@@ -1,5 +1,5 @@
 import { useState } from "react";
-import pb from "../pb";
+import supabase from "../supabase";
 
 export default function Login({ onLogin }) {
   const [view, setView] = useState("login");
@@ -20,20 +20,19 @@ export default function Login({ onLogin }) {
     if (!form.password) return setError("Please enter your password.");
     setLoading(true);
     try {
-      const authData = await pb
-        .collection("users")
-        .authWithPassword(form.email.trim(), form.password);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: form.email.trim(),
+        password: form.password,
+      });
+      if (error) throw error;
       onLogin({
-        name: authData.record.name,
-        email: authData.record.email,
-        id: authData.record.id,
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.name || data.user.email,
       });
     } catch (err) {
-      const msg = err?.response?.message || err?.message || "";
-      if (
-        msg.toLowerCase().includes("failed to authenticate") ||
-        msg.toLowerCase().includes("invalid")
-      ) {
+      const msg = err?.message?.toLowerCase() || "";
+      if (msg.includes("invalid") || msg.includes("credentials")) {
         setError("Invalid email or password.");
       } else {
         setError("Something went wrong. Please try again.");
@@ -52,29 +51,32 @@ export default function Login({ onLogin }) {
       return setError("Password must be at least 8 characters.");
     setLoading(true);
     try {
-      await pb.collection("users").create({
-        name: form.name.trim(),
+      const { data, error } = await supabase.auth.signUp({
         email: form.email.trim(),
         password: form.password,
-        passwordConfirm: form.password,
+        options: {
+          data: { name: form.name.trim() },
+        },
       });
-      const authData = await pb
-        .collection("users")
-        .authWithPassword(form.email.trim(), form.password);
-      onLogin({
-        name: authData.record.name,
-        email: authData.record.email,
-        id: authData.record.id,
-      });
+      if (error) throw error;
+      // Supabase may require email confirmation depending on your settings
+      // If email confirmation is OFF, user is logged in immediately
+      if (data.user && data.session) {
+        onLogin({
+          id: data.user.id,
+          email: data.user.email,
+          name: form.name.trim(),
+        });
+      } else {
+        // Email confirmation is ON — show a message
+        setView("confirm-email");
+      }
     } catch (err) {
-      const msg = err?.response?.message || err?.message || "";
-      if (
-        msg.toLowerCase().includes("already exists") ||
-        msg.toLowerCase().includes("unique")
-      ) {
+      const msg = err?.message?.toLowerCase() || "";
+      if (msg.includes("already") || msg.includes("exists")) {
         setError("An account with this email already exists.");
       } else {
-        setError("Something went wrong. Please try again.");
+        setError(err.message || "Something went wrong. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -87,9 +89,14 @@ export default function Login({ onLogin }) {
     if (!form.email.trim()) return setError("Please enter your email.");
     setLoading(true);
     try {
-      await pb.collection("users").requestPasswordReset(form.email.trim());
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        form.email.trim(),
+        { redirectTo: window.location.origin }
+      );
+      if (error) throw error;
       setView("forgot-sent");
     } catch (err) {
+      // Always show sent screen to avoid email enumeration
       setView("forgot-sent");
     } finally {
       setLoading(false);
@@ -230,6 +237,28 @@ export default function Login({ onLogin }) {
           </>
         )}
 
+        {/* ── Confirm Email View (only if email confirmation is ON) ── */}
+        {view === "confirm-email" && (
+          <>
+            <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>✉️</div>
+              <h1 className="login-title" style={{ fontSize: 22 }}>
+                Confirm your email
+              </h1>
+              <p className="login-sub" style={{ marginBottom: 0 }}>
+                We sent a confirmation link to{" "}
+                <strong style={{ color: "var(--text)" }}>{form.email}</strong>.
+                Click it to activate your account.
+              </p>
+            </div>
+            <p className="login-switch" style={{ marginTop: 16 }}>
+              <button onClick={() => reset("login")} className="switch-btn">
+                Back to sign in
+              </button>
+            </p>
+          </>
+        )}
+
         {/* ── Forgot Password View ── */}
         {view === "forgot" && (
           <>
@@ -295,7 +324,7 @@ export default function Login({ onLogin }) {
                 lineHeight: 1.6,
               }}
             >
-              💡 The link expires in 30 minutes. Check your spam folder if you
+              💡 The link expires in 1 hour. Check your spam folder if you
               don't see it.
             </div>
             <p className="login-switch" style={{ marginTop: 16 }}>
