@@ -1,5 +1,5 @@
 import { useState } from "react";
-import pb from "../pb";
+import supabase from "../supabase";
 
 export default function Settings({ user, onUserUpdate, onLogout }) {
   const [activeSection, setActiveSection] = useState("profile");
@@ -12,64 +12,103 @@ export default function Settings({ user, onUserUpdate, onLogout }) {
   const [profileSave, setProfileSave] = useState(false);
 
   // ── Password ───────────────────────────────────────────────────
-  const [oldPass,   setOldPass]   = useState("");
-  const [newPass,   setNewPass]   = useState("");
-  const [confPass,  setConfPass]  = useState("");
-  const [passMsg,   setPassMsg]   = useState("");
-  const [passErr,   setPassErr]   = useState("");
-  const [passSave,  setPassSave]  = useState(false);
+  const [oldPass,  setOldPass]  = useState("");
+  const [newPass,  setNewPass]  = useState("");
+  const [confPass, setConfPass] = useState("");
+  const [passMsg,  setPassMsg]  = useState("");
+  const [passErr,  setPassErr]  = useState("");
+  const [passSave, setPassSave] = useState(false);
 
   // ── Danger zone ────────────────────────────────────────────────
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteErr,     setDeleteErr]     = useState("");
 
   const initials = user?.name
-    ? user.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)
+    ? user.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
     : "?";
 
+  // ── Save profile (name + email) ────────────────────────────────
   const saveProfile = async () => {
     setProfileErr(""); setProfileMsg("");
-    if (!name.trim()) return setProfileErr("Name cannot be empty.");
+    if (!name.trim())  return setProfileErr("Name cannot be empty.");
     if (!email.trim()) return setProfileErr("Email cannot be empty.");
     setProfileSave(true);
     try {
-      const updated = await pb.collection("users").update(user.id, {
-        name: name.trim(),
-        email: email.trim(),
+      // Update display name in user metadata
+      const { data, error: metaErr } = await supabase.auth.updateUser({
+        data: { name: name.trim() },
       });
-      onUserUpdate({ ...user, name: updated.name, email: updated.email });
-      setProfileMsg("Profile updated successfully!");
+      if (metaErr) throw metaErr;
+
+      // Update email if changed (Supabase sends a confirmation email)
+      if (email.trim() !== user.email) {
+        const { error: emailErr } = await supabase.auth.updateUser({
+          email: email.trim(),
+        });
+        if (emailErr) throw emailErr;
+        setProfileMsg("Profile updated! Check your new email to confirm the change.");
+      } else {
+        setProfileMsg("Profile updated successfully!");
+      }
+
+      onUserUpdate({ ...user, name: name.trim(), email: email.trim() });
     } catch (err) {
-      setProfileErr(err?.response?.message || "Failed to update profile.");
+      setProfileErr(err?.message || "Failed to update profile.");
     } finally {
       setProfileSave(false);
     }
   };
 
+  // ── Change password ────────────────────────────────────────────
   const savePassword = async () => {
     setPassErr(""); setPassMsg("");
-    if (!oldPass)            return setPassErr("Enter your current password.");
-    if (newPass.length < 8)  return setPassErr("New password must be at least 8 characters.");
-    if (newPass !== confPass) return setPassErr("Passwords do not match.");
+    if (!oldPass)             return setPassErr("Enter your current password.");
+    if (newPass.length < 8)   return setPassErr("New password must be at least 8 characters.");
+    if (newPass !== confPass)  return setPassErr("Passwords do not match.");
     setPassSave(true);
     try {
-      await pb.collection("users").update(user.id, {
-        oldPassword:     oldPass,
-        password:        newPass,
-        passwordConfirm: confPass,
+      // Re-authenticate with current password first
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: oldPass,
       });
+      if (signInErr) throw new Error("Current password is incorrect.");
+
+      // Update to new password
+      const { error: updateErr } = await supabase.auth.updateUser({
+        password: newPass,
+      });
+      if (updateErr) throw updateErr;
+
       setPassMsg("Password changed successfully!");
       setOldPass(""); setNewPass(""); setConfPass("");
     } catch (err) {
-      setPassErr(err?.response?.message || "Failed to change password. Check your current password.");
+      setPassErr(err?.message || "Failed to change password.");
     } finally {
       setPassSave(false);
     }
   };
 
+  // ── Delete account ─────────────────────────────────────────────
+  const deleteAccount = async () => {
+    setDeleteErr("");
+    try {
+      // Delete all user data first (Supabase cascades via FK but we
+      // also call the admin delete via an RPC if you have one set up,
+      // otherwise just sign out — full delete requires a server function)
+      const { error } = await supabase.rpc("delete_user");
+      if (error) throw error;
+      onLogout();
+    } catch (err) {
+      // Fallback: if no RPC set up, just sign out and show a note
+      setDeleteErr("Account deletion requires a server function. Contact support or delete manually from Supabase.");
+    }
+  };
+
   const sections = [
-    { id: "profile",  label: "Profile",       icon: "👤" },
-    { id: "password", label: "Password",      icon: "🔒" },
-    { id: "danger",   label: "Danger Zone",   icon: "⚠️" },
+    { id: "profile",  label: "Profile",     icon: "👤" },
+    { id: "password", label: "Password",    icon: "🔒" },
+    { id: "danger",   label: "Danger Zone", icon: "⚠️" },
   ];
 
   return (
@@ -94,15 +133,19 @@ export default function Settings({ user, onUserUpdate, onLogout }) {
 
       {/* Section tabs */}
       <div style={{ display: "flex", gap: 6, marginBottom: 20, background: "var(--surface-2)", borderRadius: "var(--radius-md)", padding: 4 }}>
-        {sections.map(s => (
-          <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
-            flex: 1, padding: "8px 4px", fontSize: 12, fontWeight: 600,
-            borderRadius: "var(--radius-sm)", border: "none", cursor: "pointer",
-            background: activeSection === s.id ? "var(--surface)" : "transparent",
-            color: activeSection === s.id ? "var(--text)" : "var(--text-muted)",
-            boxShadow: activeSection === s.id ? "0 1px 4px rgba(0,0,0,0.15)" : "none",
-            transition: "all 0.15s",
-          }}>
+        {sections.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setActiveSection(s.id)}
+            style={{
+              flex: 1, padding: "8px 4px", fontSize: 12, fontWeight: 600,
+              borderRadius: "var(--radius-sm)", border: "none", cursor: "pointer",
+              background: activeSection === s.id ? "var(--surface)" : "transparent",
+              color: activeSection === s.id ? "var(--text)" : "var(--text-muted)",
+              boxShadow: activeSection === s.id ? "0 1px 4px rgba(0,0,0,0.15)" : "none",
+              transition: "all 0.15s",
+            }}
+          >
             {s.icon} {s.label}
           </button>
         ))}
@@ -113,16 +156,33 @@ export default function Settings({ user, onUserUpdate, onLogout }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label className="input-label">Full Name</label>
-            <input className="input" value={name} onChange={e => setName(e.target.value)}
-              placeholder="Your name" />
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+            />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label className="input-label">Email</label>
-            <input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="your@email.com" />
+            <input
+              className="input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your@email.com"
+            />
           </div>
-          {profileErr && <p style={{ fontSize: 12, color: "var(--red)", padding: "8px 12px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "var(--radius-sm)" }}>{profileErr}</p>}
-          {profileMsg && <p style={{ fontSize: 12, color: "var(--green)", padding: "8px 12px", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "var(--radius-sm)" }}>✓ {profileMsg}</p>}
+          {profileErr && (
+            <p style={{ fontSize: 12, color: "var(--red)", padding: "8px 12px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "var(--radius-sm)" }}>
+              {profileErr}
+            </p>
+          )}
+          {profileMsg && (
+            <p style={{ fontSize: 12, color: "var(--green)", padding: "8px 12px", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "var(--radius-sm)" }}>
+              ✓ {profileMsg}
+            </p>
+          )}
           <button className="btn-primary" onClick={saveProfile} disabled={profileSave}>
             {profileSave ? "Saving…" : "Save Profile"}
           </button>
@@ -134,21 +194,35 @@ export default function Settings({ user, onUserUpdate, onLogout }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label className="input-label">Current Password</label>
-            <input className="input" type="password" value={oldPass}
-              onChange={e => setOldPass(e.target.value)} placeholder="••••••••" />
+            <input
+              className="input" type="password" value={oldPass}
+              onChange={(e) => setOldPass(e.target.value)} placeholder="••••••••"
+            />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label className="input-label">New Password</label>
-            <input className="input" type="password" value={newPass}
-              onChange={e => setNewPass(e.target.value)} placeholder="Min. 8 characters" />
+            <input
+              className="input" type="password" value={newPass}
+              onChange={(e) => setNewPass(e.target.value)} placeholder="Min. 8 characters"
+            />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label className="input-label">Confirm New Password</label>
-            <input className="input" type="password" value={confPass}
-              onChange={e => setConfPass(e.target.value)} placeholder="••••••••" />
+            <input
+              className="input" type="password" value={confPass}
+              onChange={(e) => setConfPass(e.target.value)} placeholder="••••••••"
+            />
           </div>
-          {passErr && <p style={{ fontSize: 12, color: "var(--red)", padding: "8px 12px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "var(--radius-sm)" }}>{passErr}</p>}
-          {passMsg && <p style={{ fontSize: 12, color: "var(--green)", padding: "8px 12px", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "var(--radius-sm)" }}>✓ {passMsg}</p>}
+          {passErr && (
+            <p style={{ fontSize: 12, color: "var(--red)", padding: "8px 12px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "var(--radius-sm)" }}>
+              {passErr}
+            </p>
+          )}
+          {passMsg && (
+            <p style={{ fontSize: 12, color: "var(--green)", padding: "8px 12px", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "var(--radius-sm)" }}>
+              ✓ {passMsg}
+            </p>
+          )}
           <button className="btn-primary" onClick={savePassword} disabled={passSave}>
             {passSave ? "Saving…" : "Change Password"}
           </button>
@@ -158,37 +232,49 @@ export default function Settings({ user, onUserUpdate, onLogout }) {
       {/* ── Danger Zone ── */}
       {activeSection === "danger" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* Sign out */}
           <div style={{ padding: "14px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "var(--radius-md)" }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: "var(--red)", marginBottom: 6 }}>Sign Out</p>
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12, lineHeight: 1.6 }}>
               You'll be signed out of your account on this device.
             </p>
-            <button onClick={onLogout} style={{ background: "rgba(239,68,68,0.12)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "var(--radius-sm)", padding: "10px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            <button
+              onClick={onLogout}
+              style={{ background: "rgba(239,68,68,0.12)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "var(--radius-sm)", padding: "10px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
               Sign Out
             </button>
           </div>
 
+          {/* Delete account */}
           <div style={{ padding: "14px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "var(--radius-md)" }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: "var(--red)", marginBottom: 6 }}>Delete Account</p>
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12, lineHeight: 1.6 }}>
               Permanently delete your account and all data. This cannot be undone.
             </p>
+            {deleteErr && (
+              <p style={{ fontSize: 12, color: "var(--red)", marginBottom: 10, lineHeight: 1.5 }}>
+                ⚠ {deleteErr}
+              </p>
+            )}
             {confirmDelete ? (
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={async () => {
-                  try {
-                    await pb.collection("users").delete(user.id);
-                    onLogout();
-                  } catch (err) {
-                    console.error("Delete failed:", err);
-                  }
-                }} style={{ background: "var(--red)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "10px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                <button
+                  onClick={deleteAccount}
+                  style={{ background: "var(--red)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "10px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
                   Yes, Delete Everything
                 </button>
-                <button className="btn-cancel" onClick={() => setConfirmDelete(false)}>Cancel</button>
+                <button className="btn-cancel" onClick={() => setConfirmDelete(false)}>
+                  Cancel
+                </button>
               </div>
             ) : (
-              <button onClick={() => setConfirmDelete(true)} style={{ background: "rgba(239,68,68,0.12)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "var(--radius-sm)", padding: "10px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                style={{ background: "rgba(239,68,68,0.12)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "var(--radius-sm)", padding: "10px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
                 Delete Account
               </button>
             )}

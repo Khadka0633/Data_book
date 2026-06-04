@@ -18,7 +18,6 @@ export default function Account({
   userId,
   onAccountsChange,
   onEntriesChange,
-  onShowTransfer,
 }) {
   const [showAddAcc, setShowAddAcc] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);

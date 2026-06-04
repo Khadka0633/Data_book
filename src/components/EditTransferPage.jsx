@@ -1,6 +1,9 @@
-import { useState, useEffect } from "react";
-import BottomSheetPicker from "./BottomSheetPicker";
-import NumericKeypad from "./NumericKeypad";
+import { useState } from "react";
+import MiniCalendar from "./Form/MiniCalendar";
+import NumericKeypadInline from "./Form/NumericKeypadInline";
+import FieldRow from "./Form/FieldRow";
+
+
 
 export default function EditTransferPage({
   entry,
@@ -10,7 +13,7 @@ export default function EditTransferPage({
   onDelete,
   onClose,
 }) {
-  const toAcc = accounts.find((a) => a.id === entry._transferTo?.accountId);
+  const toAcc = accounts.find((a) => a.id === entry._transferTo?.account_id);
 
   const [amount, setAmount] = useState(String(entry.amount));
   const [note, setNote] = useState(
@@ -18,38 +21,15 @@ export default function EditTransferPage({
       ?.replace(`Transfer to ${toAcc?.name}: `, "")
       .replace(`Transfer to ${toAcc?.name}`, "") || "",
   );
-  const [date, setDate] = useState(entry.date);
-  const [fromId, setFromId] = useState(entry.accountId);
-  const [toId, setToId] = useState(entry._transferTo?.accountId);
+  const [date, setDate]   = useState(entry.date);
+  const [fromId, setFromId] = useState(entry.account_id);
+  const [toId, setToId]   = useState(entry._transferTo?.account_id);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
-  const [showFromPicker, setShowFromPicker] = useState(false);
-  const [showToPicker, setShowToPicker] = useState(false);
+  const [activeField, setActiveField] = useState("amount");
 
-  const currentFrom = accounts.find((a) => a.id === fromId);
+  const fromAcc = accounts.find((a) => a.id === fromId);
   const currentTo = accounts.find((a) => a.id === toId);
-
-  useEffect(() => {
-    const isOpen = showFromPicker || showToPicker;
-    const scrollEl = document.querySelector(".main-content");
-    if (isOpen) {
-      if (scrollEl) scrollEl.style.overflow = "hidden";
-      document.body.style.overflow = "hidden";
-      document.body.style.position = "fixed";
-      document.body.style.width = "100%";
-    } else {
-      if (scrollEl) scrollEl.style.overflow = "";
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
-    }
-    return () => {
-      if (scrollEl) scrollEl.style.overflow = "";
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
-    };
-  }, [showFromPicker, showToPicker]);
 
   const handleSave = async () => {
     if (!amount || isNaN(amount) || +amount <= 0) return;
@@ -58,150 +38,223 @@ export default function EditTransferPage({
     setSaving(false);
   };
 
+  // ── Account grid (reused for from/to) ─────────────────────────
+  const AccountGrid = ({ selectedId, onSelect, nextField }) => (
+    <div style={{ padding: "8px 0 0" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "var(--border)" }}>
+        {accounts.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => { onSelect(a.id); setActiveField(nextField); }}
+            style={{
+              padding: "16px 8px", fontSize: 13, fontWeight: 500, cursor: "pointer",
+              border: "none",
+              background: selectedId === a.id ? "rgba(99,102,241,0.15)" : "var(--surface-2)",
+              color: selectedId === a.id ? "var(--accent)" : "var(--text)",
+              textAlign: "center", lineHeight: 1.4,
+            }}
+          >
+            <span style={{ display: "block", fontSize: 18, marginBottom: 2 }}>{a.icon}</span>
+            <span style={{ fontSize: 11 }}>{a.name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Context panel ──────────────────────────────────────────────
+  const renderContextPanel = () => {
+    switch (activeField) {
+      case "date":
+        return (
+          <MiniCalendar
+            value={date}
+            onChange={(ds) => { setDate(ds); setActiveField("from"); }}
+          />
+        );
+      case "from":
+        return (
+          <AccountGrid
+            selectedId={fromId}
+            onSelect={setFromId}
+            nextField="to"
+          />
+        );
+      case "to":
+        return (
+          <AccountGrid
+            selectedId={toId}
+            onSelect={setToId}
+            nextField="amount"
+          />
+        );
+      case "note":
+        return (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 60, color: "var(--text-muted)", fontSize: 12 }}>
+            ↑ Use the keyboard above to type your note
+          </div>
+        );
+      case "amount":
+      default:
+        return (
+          <NumericKeypadInline value={amount} onChange={setAmount} />
+        );
+    }
+  };
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "var(--bg)",
-        zIndex: 50,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
-    >
+    <div style={{
+      position: "fixed", inset: 0, background: "var(--bg)",
+      zIndex: 50, display: "flex", flexDirection: "column", overflow: "hidden",
+    }}>
+
       {/* Top bar */}
       <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "16px 20px",
-        borderBottom: "1px solid var(--border)",
-        flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "16px 20px", borderBottom: "1px solid var(--border)", flexShrink: 0,
       }}>
         <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text)", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
           ‹ Back
         </button>
-        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
-          Edit Transfer
-        </span>
+        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>Edit Transfer</span>
         <div style={{ width: 60 }} />
       </div>
 
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      {/* Type tab — locked to Transfer */}
+      <div style={{ display: "flex", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+        {["Income", "Expense", "Transfer"].map((t) => {
+          const color = t === "Income" ? "var(--green)" : t === "Expense" ? "var(--red)" : "var(--accent)";
+          const active = t === "Transfer";
+          return (
+            <button
+              key={t}
+              disabled
+              style={{
+                flex: 1, padding: "14px 0", fontSize: 14, fontWeight: 600,
+                border: "none", cursor: "default", background: "transparent",
+                color: active ? color : "var(--text-muted)",
+                borderBottom: active ? `2px solid ${color}` : "2px solid transparent",
+                marginBottom: "-1px",
+              }}
+            >{t}</button>
+          );
+        })}
+      </div>
 
-      
+      {/* Scrollable fields */}
+      <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ padding: "0 20px" }}>
 
           {/* Amount */}
-          <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)" }}>
-            <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Amount</span>
-            <span style={{
-              flex: 1,
-              fontSize: 28,
-              fontWeight: 700,
-              color: amount ? "var(--text)" : "var(--text-muted)",
-              textAlign: "right",
-              fontFamily: "'Syne', sans-serif",
-            }}>
+          <FieldRow label="Amount" active={activeField === "amount"} onTap={() => setActiveField("amount")}>
+            <span style={{ fontSize: 28, fontWeight: 700, color: amount ? "var(--text)" : "var(--text-muted)", fontFamily: "'Syne', sans-serif" }}>
               {amount || "0"}
             </span>
-          </div>
+          </FieldRow>
 
           {/* Date */}
-          <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer", position: "relative" }}
-            onClick={() => document.getElementById("edit-transfer-date").showPicker?.()}>
-            <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Date</span>
-            <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>
+          <FieldRow label="Date" active={activeField === "date"} onTap={() => setActiveField("date")}>
+            <span style={{ fontSize: 15, color: "var(--text)" }}>
               {new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
             </span>
-            <input id="edit-transfer-date" type="date" value={date}
-              onChange={(e) => setDate(e.target.value)}
-              style={{ position: "absolute", opacity: 0, width: "100%", height: "100%", top: 0, left: 0, cursor: "pointer" }} />
-          </div>
+          </FieldRow>
 
           {/* From */}
-          <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer" }}
-            onClick={() => setShowFromPicker(true)}>
-            <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>From</span>
-            <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>{currentFrom?.icon} {currentFrom?.name}</span>
-            <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
+          <FieldRow label="From" active={activeField === "from"} onTap={() => setActiveField("from")} showChevron>
+            <span style={{ fontSize: 15, color: "var(--text)" }}>
+              {fromAcc ? `${fromAcc.icon} ${fromAcc.name}` : "Select..."}
+            </span>
+          </FieldRow>
+
+          {/* Arrow divider */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
+            <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+            <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>↓ to</span>
+            <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
           </div>
 
           {/* To */}
-          <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)", cursor: "pointer" }}
-            onClick={() => setShowToPicker(true)}>
-            <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>To</span>
-            <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>{currentTo?.icon} {currentTo?.name}</span>
-            <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
-          </div>
+          <FieldRow label="To" active={activeField === "to"} onTap={() => setActiveField("to")} showChevron>
+            <span style={{ fontSize: 15, color: "var(--text)" }}>
+              {currentTo ? `${currentTo.icon} ${currentTo.name}` : "Select..."}
+            </span>
+          </FieldRow>
+
+          {/* Same account warning */}
+          {fromId === toId && fromId && (
+            <p style={{ fontSize: 12, color: "var(--red)", padding: "4px 0" }}>
+              ⚠ Source and destination must be different
+            </p>
+          )}
 
           {/* Note */}
-          <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)" }}>
-            <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Note</span>
+          <FieldRow label="Note" active={activeField === "note"} onTap={() => setActiveField("note")} noBorder>
             <input
               type="text"
               placeholder="Add a note..."
               value={note}
+              onFocus={() => setActiveField("note")}
               onChange={(e) => setNote(e.target.value)}
               style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 15, color: "var(--text)", fontFamily: "inherit", textAlign: "right" }}
             />
-          </div>
+          </FieldRow>
 
-          {/* Save / Delete */}
-          <div style={{ paddingTop: 24, display: "flex", flexDirection: "column", gap: 10, paddingBottom: 16 }}>
-            <button onClick={handleSave} disabled={saving} style={{ width: "100%", padding: "14px", borderRadius: "var(--radius-md)", background: "var(--accent)", color: "#fff", border: "none", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
-            {confirmDel ? (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={onDelete} style={{ flex: 1, padding: "12px", borderRadius: "var(--radius-md)", background: "rgba(239,68,68,0.12)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                  Confirm Delete Both
-                </button>
-                <button onClick={() => setConfirmDel(false)} style={{ padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--surface-2)", color: "var(--text-muted)", border: "1px solid var(--border)", fontSize: 14, cursor: "pointer" }}>
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button onClick={() => setConfirmDel(true)} style={{ width: "100%", padding: "12px", borderRadius: "var(--radius-md)", background: "transparent", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                🗑 Delete Transfer
-              </button>
-            )}
-          </div>
         </div>
-      </div>{/* end scrollable */}
-
-      {/* Numeric Keypad — pinned at bottom as flex child */}
-       <div
-          style={{ paddingBottom: "calc(60px + env(safe-area-inset-bottom))" }}>
-        <NumericKeypad
-          value={amount}
-          onChange={(val) => setAmount(val)}
-        />
       </div>
 
-      {/* From Picker */}
-      {showFromPicker && (
-        <BottomSheetPicker
-          title="From Account"
-          options={accounts}
-          selected={fromId}
-          onSelect={setFromId}
-          onClose={() => setShowFromPicker(false)}
-        />
-      )}
+      {/* Save / Delete */}
+      <div style={{ padding: "10px 20px 8px", flexShrink: 0 }}>
+        <button
+          onClick={handleSave}
+          disabled={saving || fromId === toId}
+          style={{
+            width: "100%", padding: "14px", borderRadius: "var(--radius-md)",
+            background: "var(--accent)", color: "#fff", border: "none",
+            fontSize: 15, fontWeight: 700, cursor: "pointer",
+            opacity: fromId === toId ? 0.5 : 1,
+          }}
+        >
+          {saving ? "Saving..." : "Save Changes"}
+        </button>
 
-      {/* To Picker */}
-      {showToPicker && (
-        <BottomSheetPicker
-          title="To Account"
-          options={accounts}
-          selected={toId}
-          onSelect={setToId}
-          onClose={() => setShowToPicker(false)}
-        />
-      )}
+        {confirmDel ? (
+          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            <button
+              onClick={onDelete}
+              style={{ flex: 1, padding: "12px", borderRadius: "var(--radius-md)", background: "rgba(239,68,68,0.12)", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+            >
+              Confirm Delete
+            </button>
+            <button
+              onClick={() => setConfirmDel(false)}
+              style={{ padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--surface-2)", color: "var(--text-muted)", border: "1px solid var(--border)", fontSize: 14, cursor: "pointer" }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDel(true)}
+            style={{ width: "100%", padding: "11px", marginTop: 6, borderRadius: "var(--radius-md)", background: "transparent", color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+          >
+            🗑 Delete Transfer
+          </button>
+        )}
+      </div>
+
+      {/* Context panel */}
+      <div style={{
+        flexShrink: 0,
+        borderTop: "1px solid var(--border)",
+        background: "var(--surface)",
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 60px)",
+        minHeight: 240,
+        maxHeight: 340,
+        overflowY: "auto",
+      }}>
+        {renderContextPanel()}
+      </div>
+
     </div>
   );
 }

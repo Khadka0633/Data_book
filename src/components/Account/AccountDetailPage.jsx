@@ -1,12 +1,131 @@
-
 import { useState, useEffect } from "react";
 import supabase from "../../supabase";
 import { CURRENCIES } from "../Constant/allConstant";
 
-
 const CURRENCY_MAP = Object.fromEntries(CURRENCIES.map((c) => [c.code, c]));
 
+// ─── MiniCalendar ─────────────────────────────────────────────────
+function MiniCalendar({ value, onChange }) {
+  const current = value ? new Date(value + "T00:00:00") : new Date();
+  const [viewYear, setViewYear] = useState(current.getFullYear());
+  const [viewMonth, setViewMonth] = useState(current.getMonth());
 
+  const todayStr = new Date().toISOString().split("T")[0];
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString("en-US", {
+    month: "long", year: "numeric",
+  });
+
+  const changeMonth = (dir) => {
+    const d = new Date(viewYear, viewMonth + dir, 1);
+    setViewYear(d.getFullYear());
+    setViewMonth(d.getMonth());
+  };
+
+  const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(<div key={`e${i}`} />);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const isSelected = ds === value;
+    const isToday = ds === todayStr;
+    cells.push(
+      <button
+        key={ds}
+        onClick={() => onChange(ds)}
+        style={{
+          aspectRatio: "1", borderRadius: 8,
+          border: isSelected ? "2px solid var(--accent)" : isToday ? "1px solid rgba(99,102,241,0.4)" : "1px solid transparent",
+          background: isSelected ? "var(--accent)" : isToday ? "rgba(99,102,241,0.1)" : "transparent",
+          color: isSelected ? "#fff" : "var(--text)",
+          fontSize: 13, fontWeight: isSelected || isToday ? 700 : 400,
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "all 0.12s",
+        }}
+      >{d}</button>
+    );
+  }
+
+  return (
+    <div style={{ padding: "8px 14px 4px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <button onClick={() => changeMonth(-1)} style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{monthLabel}</span>
+        <button onClick={() => changeMonth(1)} style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>›</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>
+        {DAYS.map(d => (
+          <div key={d} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: "var(--text-muted)", padding: "2px 0", textTransform: "uppercase", letterSpacing: 0.5 }}>{d}</div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+        {cells}
+      </div>
+    </div>
+  );
+}
+
+// ─── FieldRow ─────────────────────────────────────────────────────
+function FieldRow({ label, active, onTap, showChevron, noBorder, children }) {
+  return (
+    <div
+      onClick={onTap}
+      style={{
+        display: "flex", alignItems: "center",
+        padding: "18px 0",
+        borderBottom: noBorder ? "none" : "1px solid var(--border)",
+        cursor: "pointer",
+        borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent",
+        paddingLeft: 10,
+        marginLeft: -10,
+        transition: "all 0.15s",
+      }}
+    >
+      <span style={{
+        fontSize: 15, width: 90, flexShrink: 0, fontWeight: active ? 600 : 400,
+        color: active ? "var(--accent)" : "var(--text-muted)",
+        transition: "color 0.15s",
+      }}>
+        {label}
+      </span>
+      <div style={{ flex: 1, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
+        {children}
+        {showChevron && (
+          <span style={{ color: active ? "var(--accent)" : "var(--text-muted)", fontSize: 14 }}>›</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── NumericKeypad ────────────────────────────────────────────────
+function NumericKeypadInline({ value, onChange }) {
+  const handleKey = (key) => {
+    if (key === "⌫") { onChange(value.slice(0, -1) || ""); }
+    else if (key === ".") { if (!value.includes(".")) onChange(value + "."); }
+    else { if (value === "0") onChange(key); else onChange(value + key); }
+  };
+  const keys = ["1","2","3","4","5","6","7","8","9",".","0","⌫"];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "var(--border)" }}>
+      {keys.map((key) => (
+        <button
+          key={key}
+          onClick={() => handleKey(key)}
+          style={{
+            padding: "18px 0", fontSize: key === "⌫" ? 20 : 22, fontWeight: 500,
+            background: key === "⌫" ? "var(--surface-2)" : "var(--surface)",
+            border: "none", color: key === "⌫" ? "var(--red)" : "var(--text)",
+            cursor: "pointer", fontFamily: "'Syne', sans-serif",
+          }}
+        >{key}</button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────
 export default function AccountDetailPage({
   account,
   entries,
@@ -31,11 +150,12 @@ export default function AccountDetailPage({
   const [formCategory, setFormCategory] = useState("");
   const [formDate, setFormDate] = useState(today);
   const [formNote, setFormNote] = useState("");
-  const [showCatPicker, setShowCatPicker] = useState(false);
+  const [activeField, setActiveField] = useState("amount");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { setLocalEntries(entries); }, [entries]);
 
-  // Load categories from Supabase
+  // Load categories
   useEffect(() => {
     if (!userId) return;
     Promise.all([
@@ -50,7 +170,6 @@ export default function AccountDetailPage({
   const currency = account.currency || "NPR";
   const currMeta = CURRENCY_MAP[currency] || CURRENCY_MAP.NPR;
 
-  // Filter entries for this account (field is account_id in Supabase)
   const accEntries = localEntries
     .filter((e) => e.account_id === account.id)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -60,7 +179,6 @@ export default function AccountDetailPage({
   const balance = income - expense;
   const balanceNPR = toNPR(balance, currency);
 
-  // Group by date
   const groups = {};
   accEntries.forEach((e) => {
     if (!groups[e.date]) groups[e.date] = [];
@@ -70,9 +188,22 @@ export default function AccountDetailPage({
     .sort((a, b) => b.localeCompare(a))
     .map((date) => ({ date, entries: groups[date] }));
 
-  // ── Add entry ───────────────────────────────────────────────────
+  const currentCats = formType === "expense" ? expCats : incCats;
+
+  // ── Reset form ─────────────────────────────────────────────────
+  const resetForm = (type = "expense") => {
+    setFormType(type);
+    setFormAmount("");
+    setFormCategory((type === "expense" ? expCats : incCats)[0]?.name || "");
+    setFormDate(today);
+    setFormNote("");
+    setActiveField("amount");
+  };
+
+  // ── Add entry ──────────────────────────────────────────────────
   const handleAddSave = async () => {
     if (!formAmount || isNaN(formAmount) || +formAmount <= 0) return;
+    setSaving(true);
     const { data, error } = await supabase
       .from("entries")
       .insert({
@@ -87,7 +218,7 @@ export default function AccountDetailPage({
       })
       .select()
       .single();
-
+    setSaving(false);
     if (error) { console.error("Failed to add entry:", error); return; }
     const updated = [...localEntries, data];
     setLocalEntries(updated);
@@ -95,9 +226,10 @@ export default function AccountDetailPage({
     setMode("list");
   };
 
-  // ── Edit entry ──────────────────────────────────────────────────
+  // ── Edit entry ─────────────────────────────────────────────────
   const handleEditSave = async () => {
     if (!formAmount || isNaN(formAmount) || +formAmount <= 0) return;
+    setSaving(true);
     const { data, error } = await supabase
       .from("entries")
       .update({
@@ -110,7 +242,7 @@ export default function AccountDetailPage({
       .eq("id", editing.id)
       .select()
       .single();
-
+    setSaving(false);
     if (error) { console.error("Failed to update entry:", error); return; }
     const updated = localEntries.map((e) => (e.id === data.id ? data : e));
     setLocalEntries(updated);
@@ -119,7 +251,7 @@ export default function AccountDetailPage({
     setEditing(null);
   };
 
-  // ── Delete entry ────────────────────────────────────────────────
+  // ── Delete entry ───────────────────────────────────────────────
   const handleDelete = async () => {
     const { error } = await supabase.from("entries").delete().eq("id", editing.id);
     if (error) { console.error("Failed to delete entry:", error); return; }
@@ -130,43 +262,102 @@ export default function AccountDetailPage({
     setEditing(null);
   };
 
-  // ── Add / Edit form view ────────────────────────────────────────
+  // ── Context panel renderer ────────────────────────────────────
+  const renderContextPanel = () => {
+    switch (activeField) {
+
+      case "date":
+        return (
+          <MiniCalendar
+            value={formDate}
+            onChange={(ds) => {
+              setFormDate(ds);
+              setActiveField("category");
+            }}
+          />
+        );
+
+      case "category":
+        return (
+          <div style={{ padding: "8px 0 0" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "var(--border)" }}>
+              {currentCats.map((c) => (
+                <button
+                  key={c.id || c.name}
+                  onClick={() => {
+                    setFormCategory(c.name);
+                    setActiveField("amount");
+                  }}
+                  style={{
+                    padding: "16px 8px", fontSize: 13, fontWeight: 500, cursor: "pointer",
+                    border: "none",
+                    background: formCategory === c.name ? "rgba(99,102,241,0.15)" : "var(--surface-2)",
+                    color: formCategory === c.name ? "var(--accent)" : "var(--text)",
+                    textAlign: "center",
+                  }}
+                >{c.name}</button>
+              ))}
+            </div>
+          </div>
+        );
+
+      case "note":
+        return (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 60, color: "var(--text-muted)", fontSize: 12 }}>
+            ↑ Use the keyboard above to type your note
+          </div>
+        );
+
+      case "amount":
+      default:
+        return (
+          <NumericKeypadInline
+            value={formAmount}
+            onChange={setFormAmount}
+          />
+        );
+    }
+  };
+
+  // ── Add / Edit Form ────────────────────────────────────────────
   if (mode === "add" || mode === "edit") {
+    const isEdit = mode === "edit";
     return (
-      <div className="page" style={{ padding: 0, gap: 0, maxWidth: "100%", background: "var(--bg)", minHeight: "100vh" }}>
+      <div style={{
+        position: "fixed", inset: 0, background: "var(--bg)",
+        zIndex: 50, display: "flex", flexDirection: "column", overflow: "hidden",
+      }}>
+
         {/* Top bar */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 20px", borderBottom: "1px solid var(--border)",
+          padding: "16px 20px", borderBottom: "1px solid var(--border)", flexShrink: 0,
         }}>
           <button
-            onClick={() => { setMode("list"); setEditing(null); }}
+            onClick={() => { setMode("list"); setEditing(null); setActiveField("amount"); }}
             style={{ background: "none", border: "none", color: "var(--text)", fontSize: 15, fontWeight: 600, cursor: "pointer" }}
           >
             ‹ Back
           </button>
           <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
-            {mode === "add" ? "Add Transaction" : formType === "expense" ? "Expense" : "Income"}
+            {isEdit ? "Edit Transaction" : "Add Transaction"}
           </span>
           <div style={{ width: 60 }} />
         </div>
 
-        {/* Type toggle */}
-        <div style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
+        {/* Type toggle — disabled when editing */}
+        <div style={{ display: "flex", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
           {["income", "expense"].map((t) => (
             <button
               key={t}
               onClick={() => {
-                if (mode === "edit") return;
+                if (isEdit) return;
                 setFormType(t);
-                setFormCategory(
-                  t === "expense" ? expCats[0]?.name || "" : incCats[0]?.name || ""
-                );
+                setFormCategory((t === "expense" ? expCats : incCats)[0]?.name || "");
               }}
               style={{
                 flex: 1, padding: "14px 0", fontSize: 14, fontWeight: 600,
-                border: "none", cursor: mode === "edit" ? "default" : "pointer",
-                background: "transparent",
+                border: "none", cursor: isEdit ? "default" : "pointer", background: "transparent",
                 color: formType === t
                   ? t === "expense" ? "var(--red)" : "var(--green)"
                   : "var(--text-muted)",
@@ -181,90 +372,76 @@ export default function AccountDetailPage({
           ))}
         </div>
 
-        {/* Fields */}
-        <div style={{ padding: "0 20px" }}>
-          {/* Amount */}
-          <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)" }}>
-            <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Amount</span>
-            <input
-              type="number" placeholder="0" autoFocus value={formAmount}
-              onChange={(e) => setFormAmount(e.target.value)}
-              style={{
-                flex: 1, background: "transparent", border: "none", outline: "none",
-                fontSize: 28, fontWeight: 700, color: "var(--text)",
-                fontFamily: "'Syne', sans-serif", textAlign: "right",
-              }}
-            />
-          </div>
+        {/* Scrollable fields */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          <div style={{ padding: "0 20px" }}>
 
-          {/* Date */}
-          <div style={{
-            display: "flex", alignItems: "center", padding: "18px 0",
-            borderBottom: "1px solid var(--border)", cursor: "pointer", position: "relative",
-          }}
-            onClick={() => document.getElementById("acc-date-input").showPicker?.()}
-          >
-            <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Date</span>
-            <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>
-              {new Date(formDate + "T00:00:00").toLocaleDateString("en-US", {
-                weekday: "short", month: "short", day: "numeric", year: "numeric",
-              })}
-            </span>
-            <input
-              id="acc-date-input" type="date" value={formDate}
-              onChange={(e) => setFormDate(e.target.value)}
-              style={{ position: "absolute", opacity: 0, width: "100%", height: "100%", top: 0, left: 0, cursor: "pointer" }}
-            />
-          </div>
+            {/* Amount */}
+            <FieldRow label="Amount" active={activeField === "amount"} onTap={() => setActiveField("amount")}>
+              <span style={{
+                fontSize: 28, fontWeight: 700,
+                color: formAmount ? "var(--text)" : "var(--text-muted)",
+                fontFamily: "'Syne', sans-serif",
+              }}>
+                {formAmount || "0"}
+              </span>
+            </FieldRow>
 
-          {/* Category */}
-          <div style={{
-            display: "flex", alignItems: "center", padding: "18px 0",
-            borderBottom: "1px solid var(--border)", cursor: "pointer",
-          }}
-            onClick={() => setShowCatPicker(true)}
-          >
-            <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Category</span>
-            <span style={{ flex: 1, fontSize: 15, color: "var(--text)", textAlign: "right" }}>
-              {formCategory || "Select..."}
-            </span>
-            <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>›</span>
-          </div>
+            {/* Date */}
+            <FieldRow label="Date" active={activeField === "date"} onTap={() => setActiveField("date")}>
+              <span style={{ fontSize: 15, color: "var(--text)" }}>
+                {new Date(formDate + "T00:00:00").toLocaleDateString("en-US", {
+                  weekday: "short", month: "short", day: "numeric", year: "numeric",
+                })}
+              </span>
+            </FieldRow>
 
-          {/* Note */}
-          <div style={{ display: "flex", alignItems: "center", padding: "18px 0", borderBottom: "1px solid var(--border)" }}>
-            <span style={{ fontSize: 15, color: "var(--text-muted)", width: 90, flexShrink: 0 }}>Note</span>
-            <input
-              type="text" placeholder="Add a note..." value={formNote}
-              onChange={(e) => setFormNote(e.target.value)}
-              style={{
-                flex: 1, background: "transparent", border: "none", outline: "none",
-                fontSize: 15, color: "var(--text)", fontFamily: "inherit", textAlign: "right",
-              }}
-            />
+            {/* Category */}
+            <FieldRow label="Category" active={activeField === "category"} onTap={() => setActiveField("category")} showChevron>
+              <span style={{ fontSize: 15, color: formCategory ? "var(--text)" : "var(--text-muted)" }}>
+                {formCategory || "Select..."}
+              </span>
+            </FieldRow>
+
+            {/* Note */}
+            <FieldRow label="Note" active={activeField === "note"} onTap={() => setActiveField("note")} noBorder>
+              <input
+                type="text"
+                placeholder="Add a note..."
+                value={formNote}
+                onFocus={() => setActiveField("note")}
+                onChange={(e) => setFormNote(e.target.value)}
+                style={{
+                  flex: 1, background: "transparent", border: "none", outline: "none",
+                  fontSize: 15, color: "var(--text)", fontFamily: "inherit", textAlign: "right",
+                }}
+              />
+            </FieldRow>
+
           </div>
         </div>
 
-        {/* Save button */}
-        <div style={{ padding: "24px 20px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* Save / Delete buttons */}
+        <div style={{ padding: "10px 20px 8px", flexShrink: 0 }}>
           <button
-            onClick={mode === "edit" ? handleEditSave : handleAddSave}
+            onClick={isEdit ? handleEditSave : handleAddSave}
+            disabled={saving}
             style={{
               width: "100%", padding: "14px", borderRadius: "var(--radius-md)",
               background: formType === "expense" ? "var(--red)" : "var(--green)",
               color: "#fff", border: "none", fontSize: 15, fontWeight: 700, cursor: "pointer",
             }}
           >
-            {mode === "edit" ? "Save Changes" : `Add ${formType === "expense" ? "Expense" : "Income"}`}
+            {saving ? "Saving..." : isEdit ? "Save Changes" : `Add ${formType === "expense" ? "Expense" : "Income"}`}
           </button>
 
-          {mode === "edit" && editing && !editing.is_transfer && (
+          {isEdit && editing && !editing.is_transfer && (
             <button
               onClick={handleDelete}
               style={{
-                width: "100%", padding: "12px", borderRadius: "var(--radius-md)",
-                background: "transparent", color: "var(--red)",
-                border: "1px solid rgba(239,68,68,0.3)",
+                width: "100%", padding: "11px", marginTop: 6,
+                borderRadius: "var(--radius-md)", background: "transparent",
+                color: "var(--red)", border: "1px solid rgba(239,68,68,0.3)",
                 fontSize: 14, fontWeight: 600, cursor: "pointer",
               }}
             >
@@ -273,55 +450,27 @@ export default function AccountDetailPage({
           )}
         </div>
 
-        {/* Category picker bottom sheet */}
-        {showCatPicker && (
-          <div
-            style={{
-              position: "fixed", inset: 0, zIndex: 200,
-              display: "flex", flexDirection: "column", justifyContent: "flex-end",
-              background: "rgba(0,0,0,0.5)",
-            }}
-            onClick={() => setShowCatPicker(false)}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                background: "var(--surface)", borderRadius: "20px 20px 0 0",
-                padding: "20px 16px", maxHeight: "70vh", overflowY: "auto",
-              }}
-            >
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)", margin: "0 auto 16px" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>Category</span>
-                <button onClick={() => setShowCatPicker(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 18, cursor: "pointer" }}>✕</button>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "var(--border)" }}>
-                {(formType === "expense" ? expCats : incCats).map((c) => (
-                  <button
-                    key={c.id || c.name}
-                    onClick={() => { setFormCategory(c.name); setShowCatPicker(false); }}
-                    style={{
-                      padding: "18px 8px", fontSize: 14, fontWeight: 500,
-                      cursor: "pointer", border: "none",
-                      background: formCategory === c.name ? "rgba(99,102,241,0.15)" : "var(--surface-2)",
-                      color: formCategory === c.name ? "var(--accent)" : "var(--text)",
-                      textAlign: "center",
-                    }}
-                  >
-                    {c.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Context-sensitive bottom panel */}
+        <div style={{
+          flexShrink: 0,
+          borderTop: "1px solid var(--border)",
+          background: "var(--surface)",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 60px)",
+          minHeight: 240,
+          maxHeight: 340,
+          overflowY: "auto",
+        }}>
+          {renderContextPanel()}
+        </div>
+
       </div>
     );
   }
 
-  // ── List view ───────────────────────────────────────────────────
+  // ── List view ──────────────────────────────────────────────────
   return (
     <div className="page" style={{ padding: 16, gap: 0 }}>
+
       {/* Top nav */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -340,20 +489,10 @@ export default function AccountDetailPage({
             <div style={{ display: "flex", gap: 6 }}>
               <button
                 onClick={async () => {
-                  // Delete all entries for this account first
-                  const { error: entryError } = await supabase
-                    .from("entries")
-                    .delete()
-                    .eq("account_id", account.id);
+                  const { error: entryError } = await supabase.from("entries").delete().eq("account_id", account.id);
                   if (entryError) { console.error(entryError); return; }
-
-                  // Delete the account
-                  const { error: accError } = await supabase
-                    .from("accounts")
-                    .delete()
-                    .eq("id", account.id);
+                  const { error: accError } = await supabase.from("accounts").delete().eq("id", account.id);
                   if (accError) { console.error(accError); return; }
-
                   onEntriesChange(entries.filter((e) => e.account_id !== account.id));
                   onAccountsChange(accounts.filter((a) => a.id !== account.id));
                   onBack();
@@ -364,9 +503,7 @@ export default function AccountDetailPage({
                   borderRadius: "var(--radius-sm)", padding: "7px 12px",
                   fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
                 }}
-              >
-                ✓ Confirm Delete
-              </button>
+              >✓ Confirm Delete</button>
               <button
                 onClick={() => setConfirmDelete(false)}
                 style={{
@@ -374,9 +511,7 @@ export default function AccountDetailPage({
                   border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
                   padding: "7px 12px", fontSize: 12, cursor: "pointer",
                 }}
-              >
-                Cancel
-              </button>
+              >Cancel</button>
             </div>
           ) : (
             <button
@@ -387,19 +522,13 @@ export default function AccountDetailPage({
                 borderRadius: "var(--radius-sm)", padding: "7px 12px",
                 fontSize: 12, fontWeight: 600, cursor: "pointer",
               }}
-            >
-              🗑 Delete
-            </button>
+            >🗑 Delete</button>
           )}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div>
-            <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "var(--text)" }}>
-              {account.name}
-            </h2>
-          </div>
-        </div>
+        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "var(--text)" }}>
+          {account.name}
+        </h2>
       </div>
 
       {/* Stats bar */}
@@ -409,23 +538,21 @@ export default function AccountDetailPage({
         border: "1px solid var(--border)", overflow: "hidden",
       }}>
         {[
-          { label: "Income",  value: `${currMeta.flag}${income.toLocaleString()}`,              color: "var(--green)" },
-          { label: "Expense", value: `${currMeta.flag}${expense.toLocaleString()}`,             color: "var(--red)" },
-          { label: "Balance", value: `${currMeta.flag}${Math.abs(balance).toLocaleString()}`,   color: balance >= 0 ? "var(--green)" : "var(--red)" },
+          { label: "Income",  value: `${currMeta.flag}${income.toLocaleString()}`,            color: "var(--green)" },
+          { label: "Expense", value: `${currMeta.flag}${expense.toLocaleString()}`,           color: "var(--red)" },
+          { label: "Balance", value: `${currMeta.flag}${Math.abs(balance).toLocaleString()}`, color: balance >= 0 ? "var(--green)" : "var(--red)" },
         ].map((s, i) => (
           <div key={s.label} style={{
             flex: 1, padding: "12px 8px", textAlign: "center",
             borderRight: i < 2 ? "1px solid var(--border)" : "none",
           }}>
-            <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>
-              {s.label}
-            </p>
+            <p style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{s.label}</p>
             <p style={{ fontSize: 14, fontWeight: 700, color: s.color }}>{s.value}</p>
           </div>
         ))}
       </div>
 
-      {/* NPR equivalent for foreign currency accounts */}
+      {/* NPR equivalent for foreign currency */}
       {currency !== "NPR" && (
         <div style={{
           background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)",
@@ -465,14 +592,16 @@ export default function AccountDetailPage({
                     setFormCategory(e.category);
                     setFormDate(e.date);
                     setFormNote(e.note || "");
+                    setActiveField("amount");
                     setMode("edit");
                   }}
                   style={{
                     display: "flex", justifyContent: "space-between", alignItems: "center",
                     padding: "10px 8px", borderBottom: "1px solid var(--border)",
-                    cursor: "pointer", borderRadius: "var(--radius-sm)", transition: "background 0.12s",
+                    cursor: e.is_transfer ? "default" : "pointer",
+                    borderRadius: "var(--radius-sm)", transition: "background 0.12s",
                   }}
-                  onMouseEnter={(el) => (el.currentTarget.style.background = "var(--surface-2)")}
+                  onMouseEnter={(el) => !e.is_transfer && (el.currentTarget.style.background = "var(--surface-2)")}
                   onMouseLeave={(el) => (el.currentTarget.style.background = "transparent")}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
@@ -485,22 +614,14 @@ export default function AccountDetailPage({
                       }} />
                     )}
                     <div style={{ minWidth: 0 }}>
-                      <p style={{
-                        fontSize: 13, color: "var(--text)", fontWeight: 500,
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}>
+                      <p style={{ fontSize: 13, color: "var(--text)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {e.note || e.category}
                       </p>
-                      <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
-                        {e.category}
-                      </p>
+                      <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{e.category}</p>
                     </div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <span style={{
-                      fontSize: 14, fontWeight: 700,
-                      color: e.type === "income" ? "var(--green)" : "var(--red)",
-                    }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: e.type === "income" ? "var(--green)" : "var(--red)" }}>
                       {e.type === "income" ? "+" : "−"}
                       {currMeta.flag}{Number(e.amount).toLocaleString()}
                     </span>
@@ -523,11 +644,7 @@ export default function AccountDetailPage({
         className="acc-detail-fab"
         onClick={() => {
           setEditing(null);
-          setFormType("expense");
-          setFormAmount("");
-          setFormCategory(expCats[0]?.name || "");
-          setFormDate(today);
-          setFormNote("");
+          resetForm("expense");
           setMode("add");
         }}
       >

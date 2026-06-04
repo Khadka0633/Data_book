@@ -1,4 +1,41 @@
-const NAV = [
+import { useState } from "react";
+
+// ── Bottom nav (4 items + hamburger) ──────────────────────────────
+const MOBILE_NAV = [
+  {
+    id: "expense",
+    label: "Finance",
+    icon: (
+      <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+        <path d="M12 6v2m0 8v2m-4-6h8"/>
+      </svg>
+    ),
+  },
+    {
+    id: "accounts",
+    label: "Accounts",
+    icon: (
+      <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 16v-4M12 8h.01"/>
+      </svg>
+    ),
+  },
+  {
+    id: "charts",
+    label: "Charts",
+    icon: (
+      <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path d="M18 20V10M12 20V4M6 20v-6"/>
+      </svg>
+    ),
+  },
+
+];
+
+// ── Desktop sidebar (all items) ────────────────────────────────────
+const SIDEBAR_NAV = [
   {
     id: "expense",
     label: "Finance",
@@ -59,20 +96,22 @@ const NAV = [
   },
 ];
 
-// Mobile nav shows only the main 5 tabs (not currency/settings — they're in sidebar)
-const MOBILE_NAV = NAV.filter(n => ![ "settings"].includes(n.id));
-
 function ThemeToggle({ theme, onToggle }) {
   return (
     <button
       onClick={onToggle}
       title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-      style={{ background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: "var(--radius-sm)", color: "var(--text-muted)", display: "flex", alignItems: "center", transition: "color 0.2s", marginLeft: "auto" }}
-      onMouseEnter={e => e.currentTarget.style.color = "var(--text)"}
-      onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
+      style={{
+        background: "none", border: "none", cursor: "pointer",
+        padding: 6, borderRadius: "var(--radius-sm)",
+        color: "var(--text-muted)", display: "flex", alignItems: "center",
+        transition: "color 0.2s",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
+      onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
     >
       {theme === "dark" ? (
-        <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="5"/>
           <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
           <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
@@ -80,7 +119,7 @@ function ThemeToggle({ theme, onToggle }) {
           <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
         </svg>
       ) : (
-        <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
         </svg>
       )}
@@ -88,10 +127,179 @@ function ThemeToggle({ theme, onToggle }) {
   );
 }
 
-export default function Sidebar({ activeTab, setActiveTab, user, onLogout, theme, onToggleTheme }) {
+// ── Hamburger Drawer ───────────────────────────────────────────────
+function HamburgerDrawer({ activeTab, setActiveTab, user, onLogout, theme, onToggleTheme, open, onClose }) {
   const initials = user?.name
-    ? user.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)
+    ? user.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
     : "?";
+
+  const drawerItems = [
+    { id: "insights", label: "insights",       icon: "📈" },
+    { id: "budget",   label: "Budget & Goals", icon: "💰" },
+    { id: "settings", label: "Settings",       icon: "⚙️" },
+  ];
+
+  if (!open) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 500,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex", justifyContent: "flex-end",
+      }}
+      onClick={onClose}
+    >
+      <style>{`
+        @keyframes slideInRight { from { transform: translateX(100%) } to { transform: translateX(0) } }
+      `}</style>
+
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 270,
+          height: "100%",
+          background: "var(--surface)",
+          borderLeft: "1px solid var(--border)",
+          display: "flex",
+          flexDirection: "column",
+          animation: "slideInRight 0.22s ease",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
+        {/* Drawer header */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 18px",
+          borderBottom: "1px solid var(--border)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <span style={{ fontSize: 20, color: "var(--accent)" }}>⬡</span>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 17, color: "var(--text)" }}>Nexus</span>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 17, cursor: "pointer", lineHeight: 1 }}>✕</button>
+        </div>
+
+        {/* User info */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "14px 18px",
+          borderBottom: "1px solid var(--border)",
+        }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: "50%",
+            background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0,
+          }}>
+            {initials}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.name || "User"}</p>
+            <p style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.email}</p>
+          </div>
+        </div>
+
+        {/* Nav items */}
+        <div style={{ flex: 1, padding: "10px 10px 0", overflowY: "auto" }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, padding: "4px 8px 8px" }}>Menu</p>
+          {drawerItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => { setActiveTab(item.id); onClose(); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 13,
+                width: "100%", padding: "12px 14px",
+                borderRadius: "var(--radius-md)",
+                border: "none", cursor: "pointer",
+                background: activeTab === item.id ? "rgba(99,102,241,0.1)" : "transparent",
+                color: activeTab === item.id ? "var(--accent)" : "var(--text)",
+                fontSize: 14, fontWeight: 500,
+                marginBottom: 2,
+                transition: "background 0.15s",
+                textAlign: "left",
+              }}
+            >
+              <span style={{ fontSize: 18, width: 24, textAlign: "center", flexShrink: 0 }}>{item.icon}</span>
+              <span>{item.label}</span>
+              {activeTab === item.id && (
+                <span style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: "var(--accent)" }} />
+              )}
+            </button>
+          ))}
+
+          {/* Theme toggle row */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "12px 14px", marginTop: 4,
+            borderTop: "1px solid var(--border)",
+          }}>
+            <span style={{ fontSize: 14, color: "var(--text)", fontWeight: 500, display: "flex", alignItems: "center", gap: 13 }}>
+              <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>{theme === "dark" ? "🌙" : "☀️"}</span>
+              {theme === "dark" ? "Dark Mode" : "Light Mode"}
+            </span>
+            {/* Toggle switch */}
+            <button
+              onClick={onToggleTheme}
+              style={{
+                width: 42, height: 24, borderRadius: 99,
+                background: theme === "dark" ? "var(--accent)" : "rgba(0,0,0,0.15)",
+                border: "none", cursor: "pointer",
+                position: "relative", flexShrink: 0,
+                transition: "background 0.2s",
+              }}
+            >
+              <span style={{
+                position: "absolute", top: 2,
+                left: theme === "dark" ? 20 : 2,
+                width: 20, height: 20, borderRadius: "50%",
+                background: "#fff",
+                transition: "left 0.2s",
+                display: "block",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Sign out */}
+        <div style={{ padding: "10px 10px 16px", borderTop: "1px solid var(--border)" }}>
+          <button
+            onClick={() => { onClose(); onLogout(); }}
+            style={{
+              display: "flex", alignItems: "center", gap: 13,
+              width: "100%", padding: "12px 14px",
+              borderRadius: "var(--radius-md)",
+              border: "none", cursor: "pointer",
+              background: "rgba(239,68,68,0.07)",
+              color: "var(--red)",
+              fontSize: 14, fontWeight: 600,
+            }}
+          >
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Sidebar export ────────────────────────────────────────────
+export default function Sidebar({ activeTab, setActiveTab, user, onLogout, theme, onToggleTheme }) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const initials = user?.name
+    ? user.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
+    : "?";
+
+  // Active state for hamburger: any of the drawer tabs
+  const drawerTabs = ["insights", "budget", "settings"];
+  const hamburgerActive = drawerTabs.includes(activeTab);
 
   return (
     <>
@@ -104,7 +312,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, theme
         </div>
 
         <nav className="sidebar-nav">
-          {NAV.map(item => (
+          {SIDEBAR_NAV.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
@@ -139,33 +347,27 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, theme
           <span className="brand-icon">⬡</span>
           <span className="brand-name">Nexus</span>
         </div>
-        <div className="mobile-topbar-right">
+        <div className="mobile-topbar-right" style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-          {/* Settings icon on mobile topbar */}
+          {/* Avatar */}
           <button
-            onClick={() => setActiveTab("settings")}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: 6, color: activeTab === "settings" ? "var(--accent)" : "var(--text-muted)", display: "flex", alignItems: "center" }}
-            title="Settings"
+            onClick={() => { setActiveTab("settings"); }}
+            style={{
+              width: 30, height: 30, borderRadius: "50%",
+              background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 700, color: "#fff",
+              border: "none", cursor: "pointer", flexShrink: 0,
+            }}
           >
-            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-            </svg>
-          </button>
-          <div className="avatar avatar-sm">{initials}</div>
-          <button onClick={onLogout} className="logout-btn" title="Sign out">
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
+            {initials}
           </button>
         </div>
       </header>
 
-      {/* ── Mobile bottom nav (5 main tabs only) ── */}
+      {/* ── Mobile bottom nav ── */}
       <nav className="mobile-bottom-nav">
-        {MOBILE_NAV.map(item => (
+        {MOBILE_NAV.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
@@ -175,7 +377,34 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, theme
             <span className="mobile-nav-label">{item.label}</span>
           </button>
         ))}
+
+        {/* Hamburger tab */}
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className={`mobile-nav-item ${hamburgerActive ? "active" : ""}`}
+        >
+          <span className="mobile-nav-icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </span>
+          <span className="mobile-nav-label">More</span>
+        </button>
       </nav>
+
+      {/* ── Hamburger Drawer ── */}
+      <HamburgerDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        user={user}
+        onLogout={onLogout}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
     </>
   );
 }

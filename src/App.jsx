@@ -8,7 +8,7 @@ import ChartsTab from "./components/ChartsTab";
 import BudgetGoals from "./components/BudgetGoals";
 import Insights from "./components/Insights";
 import Settings from "./components/Settings";
-import TransferModal from "./components/Transfermodal";
+
 import useAI from "./useAI";
 import MultiCurrencyWidget from "./components/MultiCurrencyWidget";
 
@@ -106,7 +106,6 @@ export default function App() {
   const [savingsGoals, setSavingsGoals] = useState([]);
   const [appReady, setAppReady] = useState(false);
   const [alertsDismissed, setAlertsDismissed] = useState(false);
-  const [showTransfer, setShowTransfer] = useState(false);
 
   const { theme, toggle: toggleTheme } = useTheme();
   const userId = user?.id;
@@ -247,7 +246,7 @@ export default function App() {
       setBudgets((p) => (typeof u === "function" ? u(p) : u)),
     onSavingsGoalsChange: (u) =>
       setSavingsGoals((p) => (typeof u === "function" ? u(p) : u)),
-    onBillsChange: () => {},
+    
   });
 
   // ── Account balances ───────────────────────────────────────────
@@ -373,17 +372,7 @@ export default function App() {
   // ── Render ─────────────────────────────────────────────────────
   return (
     <div className="app-shell">
-      {showTransfer && (
-        <TransferModal
-          accounts={accounts}
-          userId={userId}
-          today={today}
-          onTransferDone={(newEntries) =>
-            setEntries((prev) => [...newEntries, ...prev])
-          }
-          onClose={() => setShowTransfer(false)}
-        />
-      )}
+     
 
       <Sidebar
         activeTab={activeTab}
