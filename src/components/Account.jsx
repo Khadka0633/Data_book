@@ -6,9 +6,7 @@ import DeleteAccountModal from "./Account/DeleteAccountModal";
 import { CURRENCIES, ACCOUNT_GROUPS, ACCOUNT_ICONS } from "./Constant/allConstant";
 import useExchangeRates from "./Account/useExchangeRate";
 
-
 const CURRENCY_MAP = Object.fromEntries(CURRENCIES.map((c) => [c.code, c]));
-
 
 // ─── Main Account Page ────────────────────────────────────────────
 export default function Account({
@@ -18,6 +16,7 @@ export default function Account({
   userId,
   onAccountsChange,
   onEntriesChange,
+  onShowTransfer,
 }) {
   const [showAddAcc, setShowAddAcc] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
@@ -63,12 +62,12 @@ export default function Account({
     if (error) { console.error("Failed to update account:", error); return; }
     onAccountsChange(accounts.map((a) => (a.id === data.id ? data : a)));
     setEditingAccount(null);
+    // If we were viewing this account's detail, update selectedAcc too
+    if (selectedAcc?.id === data.id) setSelectedAcc(data);
   };
 
   // ── Delete account (with entries) ───────────────────────────────
   const handleConfirmDeleteAccount = async (accId) => {
-    // Supabase cascades entries on account delete (FK on delete cascade)
-    // but we also need to update local state
     const { error } = await supabase.from("accounts").delete().eq("id", accId);
     if (error) { console.error("Failed to delete account:", error); return; }
     onEntriesChange(entries.filter((e) => e.account_id !== accId));
@@ -107,6 +106,9 @@ export default function Account({
         onBack={() => setSelectedAcc(null)}
         onEntriesChange={onEntriesChange}
         onAccountsChange={onAccountsChange}
+        // Pass edit/delete handlers into the detail page
+        onEditAccount={(acc) => setEditingAccount(acc)}
+        onDeleteAccount={(acc) => setDeletingAccount(acc)}
       />
     );
   }
@@ -233,9 +235,9 @@ export default function Account({
             border: "1px solid var(--border)", overflow: "hidden",
           }}>
             {[
-              { label: "Assets", value: assets, color: "var(--green)" },
+              { label: "Assets",      value: assets,      color: "var(--green)" },
               { label: "Liabilities", value: liabilities, color: "var(--red)" },
-              { label: "Net Total", value: net, color: net >= 0 ? "var(--green)" : "var(--red)" },
+              { label: "Net Total",   value: net,         color: net >= 0 ? "var(--green)" : "var(--red)" },
             ].map((s, i) => (
               <div key={s.label} style={{
                 flex: 1, padding: "12px 8px", textAlign: "center",
@@ -271,7 +273,7 @@ export default function Account({
 
             return (
               <div key={grp.key} style={{ marginBottom: 4 }}>
-                {/* Group header */}
+                {/* Group header — matches expense tracker day header style */}
                 <div style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                   padding: "8px 0 4px", borderBottom: "1px solid var(--border)",
@@ -280,12 +282,15 @@ export default function Account({
                   <span style={{ fontSize: 13, fontWeight: 700, color: grp.color }}>
                     {grp.label}
                   </span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: grpTotalNPR >= 0 ? "var(--green)" : "var(--red)" }}>
+                  <span style={{
+                    fontSize: 12, fontWeight: 600,
+                    color: grpTotalNPR >= 0 ? "var(--green)" : "var(--red)",
+                  }}>
                     रु{Math.abs(grpTotalNPR).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                   </span>
                 </div>
 
-                {/* Account rows */}
+                {/* Account rows — flat ledger style, no buttons */}
                 {grpAccounts.map((acc) => {
                   const bal = accountBalances[acc.id] || 0;
                   const currency = acc.currency || "NPR";
@@ -295,6 +300,7 @@ export default function Account({
                   return (
                     <div
                       key={acc.id}
+                      onClick={() => setSelectedAcc(acc)}
                       style={{
                         display: "flex", alignItems: "center", justifyContent: "space-between",
                         padding: "9px 0", borderBottom: "1px solid var(--border)",
@@ -303,78 +309,43 @@ export default function Account({
                       onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
-                      {/* Left — name + currency badge; clicking opens detail */}
-                      <div
-                        style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}
-                        onClick={() => setSelectedAcc(acc)}
-                      >
+                      {/* Left — name + optional currency pill */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <p style={{
-                              fontSize: 12, fontWeight: 500, color: "var(--text)",
-                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                            }}>
-                              {acc.name}
-                            </p>
-                            {currency !== "NPR" && (
+                          <p style={{
+                            fontSize: 13, fontWeight: 500, color: "var(--text)",
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          }}>
+                            {acc.name}
+                          </p>
+                          {currency !== "NPR" && (
+                            <div style={{ marginTop: 3 }}>
                               <span style={{
                                 fontSize: 10,
-                                background: "rgba(99,102,241,0.1)", color: "var(--accent)",
+                                background: "rgba(99,102,241,0.08)", color: "var(--accent)",
                                 border: "1px solid rgba(99,102,241,0.2)",
-                                borderRadius: 99, padding: "0px 5px", fontWeight: 600, flexShrink: 0,
+                                borderRadius: 99, padding: "1px 7px", fontWeight: 600,
                               }}>
                                 {currMeta.flag} {currency}
                               </span>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      {/* Right — balance + edit/delete actions */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                        <div
-                          style={{ textAlign: "right", cursor: "pointer" }}
-                          onClick={() => setSelectedAcc(acc)}
-                        >
-                          <p style={{ fontSize: 12, fontWeight: 500, color: bal >= 0 ? "var(--green)" : "var(--red)" }}>
-                            रु{Math.abs(bal).toLocaleString()}
+                      {/* Right — balance */}
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <p style={{
+                          fontSize: 13, fontWeight: 700,
+                          color: bal >= 0 ? "var(--green)" : "var(--red)",
+                        }}>
+                          {currMeta.flag}{Math.abs(bal).toLocaleString()}
+                        </p>
+                        {currency !== "NPR" && (
+                          <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 1 }}>
+                            ≈ रु{Math.abs(balNPR).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                           </p>
-                          {currency !== "NPR" && (
-                            <p style={{ fontSize: 10, color: "var(--text-muted)" }}>
-                              ≈ रु{Math.abs(balNPR).toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Edit button */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditingAccount(acc); }}
-                          style={{
-                            width: 28, height: 28, borderRadius: "var(--radius-sm)",
-                            background: "rgba(99,102,241,0.08)", color: "var(--accent)",
-                            border: "1px solid rgba(99,102,241,0.2)",
-                            fontSize: 12, cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}
-                          title="Edit account"
-                        >
-                          ✎
-                        </button>
-
-                        {/* Delete button */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeletingAccount(acc); }}
-                          style={{
-                            width: 28, height: 28, borderRadius: "var(--radius-sm)",
-                            background: "rgba(239,68,68,0.08)", color: "var(--red)",
-                            border: "1px solid rgba(239,68,68,0.2)",
-                            fontSize: 12, cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}
-                          title="Delete account"
-                        >
-                          🗑
-                        </button>
+                        )}
                       </div>
                     </div>
                   );

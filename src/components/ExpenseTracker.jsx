@@ -55,8 +55,7 @@ export default function ExpenseTracker({
     useNoteSuggestions(entries, form);
   const [editTransfer, setEditTransfer] = useState(null);
 
-  // AI state
-  const [showAiCatBadge, setShowAiCatBadge] = useState(false);
+  
 
   // ── Load categories ────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -109,28 +108,9 @@ export default function ExpenseTracker({
     return () => { if (scrollEl) scrollEl.style.overflow = ""; };
   }, [showForm, editTransfer]);
 
-  // AI auto-categorization
-  useEffect(() => {
-    if (!ai || !form.note || form.note.trim().length < 3 || form.type === "transfer") {
-      setShowAiCatBadge(false);
-      return;
-    }
-    ai.suggestCategory(form.note, form.type);
-    setShowAiCatBadge(false);
-  }, [form.note, form.type]);
 
-  useEffect(() => {
-    if (ai?.catSuggestion && showForm && form.type !== "transfer") {
-      setShowAiCatBadge(true);
-    }
-  }, [ai?.catSuggestion, showForm]);
 
-  const applyAiCategory = () => {
-    if (!ai?.catSuggestion) return;
-    setForm((f) => ({ ...f, category: ai.catSuggestion }));
-    setShowAiCatBadge(false);
-    ai.clearCatSuggestion();
-  };
+
 
   const currentCats = form.type === "expense" ? expCats : incCats;
 
@@ -153,8 +133,6 @@ export default function ExpenseTracker({
   const closeForm = () => {
     setShowForm(false);
     setEditEntry(null);
-    setShowAiCatBadge(false);
-    ai?.clearCatSuggestion?.();
     setForm({
       type: "expense",
       amount: "",
@@ -501,25 +479,7 @@ export default function ExpenseTracker({
         );
 
       case "note":
-        return suggestions.length > 0 && showSuggestions ? (
-          <div>
-            <div style={{ padding: "8px 16px 4px", fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Suggestions
-            </div>
-            {suggestions.map((s, i) => (
-              <button
-                key={i}
-                onMouseDown={() => { setForm((f) => ({ ...f, note: s })); setShowSuggestions(false); }}
-                style={{
-                  display: "block", width: "100%", textAlign: "left",
-                  padding: "13px 16px", fontSize: 14, color: "var(--text)",
-                  background: "transparent", border: "none", cursor: "pointer",
-                  borderBottom: i < suggestions.length - 1 ? "1px solid var(--border)" : "none",
-                }}
-              >{s}</button>
-            ))}
-          </div>
-        ) : (
+        return  (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 60, color: "var(--text-muted)", fontSize: 12 }}>
             ↑ Use the keyboard above to type your note
           </div>
@@ -655,29 +615,55 @@ export default function ExpenseTracker({
                 </FieldRow>
               </>
             )}
+            {/* Note + inline suggestions dropdown */}
+<FieldRow label="Note" active={activeField === "note"} onTap={() => setActiveField("note")} noBorder>
+  <input
+    type="text"
+    placeholder="Add a note..."
+    value={form.note}
+    autoFocus={activeField === "note"}
+    onFocus={() => { setActiveField("note"); setShowSuggestions(suggestions.length > 0); }}
+    onChange={(e) => { setForm((f) => ({ ...f, note: e.target.value })); setShowSuggestions(true); }}
+    style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 15, color: "var(--text)", fontFamily: "inherit", textAlign: "right" }}
+  />
+</FieldRow>
 
-            {/* Note */}
-            <FieldRow label="Note" active={activeField === "note"} onTap={() => setActiveField("note")} noBorder>
-              <input
-                type="text"
-                placeholder="Add a note..."
-                value={form.note}
-                autoFocus={activeField === "note"}
-                onFocus={() => setActiveField("note")}
-                onChange={(e) => { setForm((f) => ({ ...f, note: e.target.value })); setShowSuggestions(true); }}
-                style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 15, color: "var(--text)", fontFamily: "inherit", textAlign: "right" }}
-              />
-            </FieldRow>
-
-            {/* AI category suggestion */}
-            {!isTransfer && showAiCatBadge && ai?.catSuggestion && ai.catSuggestion !== form.category && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, padding: "7px 10px", borderRadius: "var(--radius-sm)", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)" }}>
-                <span style={{ fontSize: 12 }}>✨</span>
-                <span style={{ fontSize: 12, color: "var(--text-muted)", flex: 1 }}>AI suggests: <strong style={{ color: "var(--accent)" }}>{ai.catSuggestion}</strong></span>
-                <button onClick={applyAiCategory} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Apply</button>
-                <button onClick={() => setShowAiCatBadge(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 13 }}>✕</button>
-              </div>
-            )}
+{/* Suggestions — appear right below note field */}
+{showSuggestions && suggestions.length > 0 && (
+  <div style={{
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-md)",
+    overflow: "hidden",
+    marginBottom: 8,
+  }}>
+    <p style={{
+      fontSize: 10, fontWeight: 700, color: "var(--text-muted)",
+      textTransform: "uppercase", letterSpacing: 0.8,
+      padding: "6px 14px 4px",
+    }}>
+      Suggestions
+    </p>
+    {suggestions.map((s, i) => (
+      <button
+        key={i}
+        onMouseDown={() => { setForm((f) => ({ ...f, note: s })); setShowSuggestions(false); }}
+        style={{
+          display: "block", width: "100%", textAlign: "left",
+          padding: "10px 14px", fontSize: 13, color: "var(--text)",
+          background: "transparent", border: "none", cursor: "pointer",
+          borderTop: "1px solid var(--border)",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+      >
+        {s}
+      </button>
+    ))}
+  </div>
+)}
+           
+          
           </div>
         </div>
 
@@ -825,11 +811,11 @@ export default function ExpenseTracker({
                         onMouseLeave={(el) => (el.currentTarget.style.background = "transparent")}
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span style={{ fontSize: 14, color: "var(--accent)", fontWeight: 700 }}>↔</span>
+                         
                           <div>
-                            <p style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>{fromAcc?.name} → {toAcc?.name}</p>
+                            <p style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>{e.note ? `  ${e.note.replace(/Transfer (to|from) [^:]+: ?/i, "")}` : ""} </p>
                             <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
-                              Transfer{e.note ? ` · ${e.note.replace(/Transfer (to|from) [^:]+: ?/i, "")}` : ""}
+                              {fromAcc?.name} → {toAcc?.name}
                             </p>
                           </div>
                         </div>
@@ -852,10 +838,10 @@ export default function ExpenseTracker({
                         <div style={{ minWidth: 0 }}>
                           <p style={{ fontSize: 13, color: "var(--text)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.note || e.category}</p>
                           <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
-                            <span onClick={(ev) => { ev.stopPropagation(); setCatHistory({ category: e.category, type: e.type }); }} style={{ cursor: "pointer", textDecoration: "underline dotted" }}>{e.category}</span>
+                            <span onClick={(ev) => { ev.stopPropagation(); setCatHistory({ category: e.category, type: e.type }); }} style={{ cursor: "pointer" }}>{e.category}</span>
                             {acc && (
                               <span style={{ marginLeft: 6, padding: "1px 5px", borderRadius: 99, background: "var(--surface-2)", color: "var(--text-muted)", fontSize: 10, border: "1px solid var(--border)" }}>
-                                {acc.icon} {acc.name}
+                               {acc.name}
                               </span>
                             )}
                           </p>
