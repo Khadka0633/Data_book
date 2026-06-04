@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import pb from "./pb";
+import supabase from "./supabase";
 
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 const GROQ_MODEL   = "meta-llama/llama-4-scout-17b-16e-instruct";
@@ -31,7 +31,7 @@ function parseJSON(text) {
 }
 
 // ── Build full financial context for AI ────────────────────────────
-function buildFinancialContext({ entries, accounts, budgets, savingsGoals,  expCats, incCats }) {
+function buildFinancialContext({ entries, accounts, budgets, savingsGoals, expCats, incCats }) {
   const today     = new Date().toISOString().split("T")[0];
   const thisMonth = today.slice(0, 7);
   const lastMonth = (() => {
@@ -40,12 +40,16 @@ function buildFinancialContext({ entries, accounts, budgets, savingsGoals,  expC
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   })();
 
+  // NOTE: Supabase uses is_transfer (snake_case)
   const summarize = (list) => {
     const byCategory = {};
     let income = 0, expense = 0;
-    list.filter(e => !e.isTransfer).forEach(e => {
-      if (e.type === "income") income += e.amount;
-      else { expense += e.amount; byCategory[e.category] = (byCategory[e.category] || 0) + e.amount; }
+    list.filter(e => !e.is_transfer).forEach(e => {
+      if (e.type === "income") income += Number(e.amount);
+      else {
+        expense += Number(e.amount);
+        byCategory[e.category] = (byCategory[e.category] || 0) + Number(e.amount);
+      }
     });
     return { income, expense, byCategory, net: income - expense };
   };
@@ -54,17 +58,18 @@ function buildFinancialContext({ entries, accounts, budgets, savingsGoals,  expC
   const lastSum = summarize(entries.filter(e => e.date.slice(0, 7) === lastMonth));
   const allSum  = summarize(entries);
 
+  // NOTE: Supabase uses account_id (snake_case)
   const recent = [...entries]
-    .filter(e => !e.isTransfer)
+    .filter(e => !e.is_transfer)
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 30)
-    .map(e => `${e.date} ${e.type === "income" ? "+" : "-"}रु${e.amount} (${e.category}${e.note ? ": " + e.note : ""})`)
+    .map(e => `${e.date} ${e.type === "income" ? "+" : "-"}रु${Number(e.amount)} (${e.category}${e.note ? ": " + e.note : ""})`)
     .join("\n");
 
   const budgetStatus = budgets.map(b => {
     const spent = entries
-      .filter(e => e.category === b.category && e.type === "expense" && !e.isTransfer && e.date.slice(0, 7) === thisMonth)
-      .reduce((s, e) => s + e.amount, 0);
+      .filter(e => e.category === b.category && e.type === "expense" && !e.is_transfer && e.date.slice(0, 7) === thisMonth)
+      .reduce((s, e) => s + Number(e.amount), 0);
     const pct = Math.round((spent / b.limit) * 100);
     return `${b.category}: spent रु${spent} of रु${b.limit} limit (${pct}%)`;
   }).join("\n");
@@ -73,11 +78,11 @@ function buildFinancialContext({ entries, accounts, budgets, savingsGoals,  expC
     `${g.name}: रु${g.current} of रु${g.target} (${Math.round((g.current / g.target) * 100)}%)`
   ).join("\n");
 
-
+  // NOTE: Supabase uses account_id (snake_case)
   const accountsSummary = accounts.map(a => {
     const bal = entries
-      .filter(e => e.accountId === a.id)
-      .reduce((s, e) => s + (e.type === "income" ? e.amount : -e.amount), 0);
+      .filter(e => e.account_id === a.id)
+      .reduce((s, e) => s + (e.type === "income" ? Number(e.amount) : -Number(e.amount)), 0);
     return `${a.icon} ${a.name} (${a.group}): रु${bal.toLocaleString()}`;
   }).join("\n");
 
@@ -105,8 +110,6 @@ ${budgetStatus || "No budgets set"}
 SAVINGS GOALS:
 ${goalsStatus || "No savings goals"}
 
-
-
 EXPENSE CATEGORIES: ${expCats.map(c => c.name).join(", ")}
 INCOME CATEGORIES: ${incCats.map(c => c.name).join(", ")}
 
@@ -114,10 +117,9 @@ RECENT 30 TRANSACTIONS:
 ${recent}
 
 AVAILABLE ACTIONS — if user asks you to do something, respond with JSON action:
-- Add transaction: {"action":"add_transaction","type":"expense|income","amount":number,"category":"name","note":"text","date":"YYYY-MM-DD","accountId":"id"}
+- Add transaction: {"action":"add_transaction","type":"expense|income","amount":number,"category":"name","note":"text","date":"YYYY-MM-DD","account_id":"id"}
 - Add budget: {"action":"add_budget","category":"name","limit":number}
 - Add savings goal: {"action":"add_goal","name":"text","target":number,"current":number}
-- Add bill: {"action":"add_bill","name":"text","amount":number,"dueDay":number}
 - No action needed: {"action":"none"}
 
 When taking an action, ALWAYS respond in this format:
@@ -139,9 +141,9 @@ export default function useAI({
   onEntriesChange,
   onBudgetsChange,
   onSavingsGoalsChange,
-  onBillsChange,
+ 
 }) {
-  const today = new Date().toISOString().split("T")[0];
+  const today     = new Date().toISOString().split("T")[0];
   const thisMonth = today.slice(0, 7);
 
   // ── Chat state ─────────────────────────────────────────────────
@@ -162,8 +164,8 @@ export default function useAI({
   const [dismissedAlerts, setDismissedAlerts] = useState(new Set());
 
   // ── Auto-categorization ────────────────────────────────────────
-  const [catSuggestion, setCatSuggestion]   = useState(null);
-  const [catLoading,    setCatLoading]      = useState(false);
+  const [catSuggestion, setCatSuggestion] = useState(null);
+  const [catLoading,    setCatLoading]    = useState(false);
   const catDebounceRef = useRef(null);
 
   // ── Persist chat to localStorage ──────────────────────────────
@@ -178,20 +180,31 @@ export default function useAI({
     if (!entries.length) return;
     const newAlerts = [];
 
-    // Budget alerts
+    // Budget alerts — is_transfer (snake_case)
     budgets.forEach(b => {
       const spent = entries
-        .filter(e => e.category === b.category && e.type === "expense" && !e.isTransfer && e.date.slice(0, 7) === thisMonth)
-        .reduce((s, e) => s + e.amount, 0);
+        .filter(e =>
+          e.category === b.category &&
+          e.type === "expense" &&
+          !e.is_transfer &&
+          e.date.slice(0, 7) === thisMonth
+        )
+        .reduce((s, e) => s + Number(e.amount), 0);
       const pct = (spent / b.limit) * 100;
       if (pct >= 100) {
-        newAlerts.push({ type: "danger", icon: "🚨", text: `${b.category} budget exceeded! Spent रु${spent.toLocaleString()} of रु${b.limit.toLocaleString()}` });
+        newAlerts.push({
+          type: "danger",
+          icon: "🚨",
+          text: `${b.category} budget exceeded! Spent रु${spent.toLocaleString()} of रु${b.limit.toLocaleString()}`,
+        });
       } else if (pct >= 80) {
-        newAlerts.push({ type: "warn", icon: "⚠️", text: `${b.category} budget at ${Math.round(pct)}% — रु${(b.limit - spent).toLocaleString()} remaining` });
+        newAlerts.push({
+          type: "warn",
+          icon: "⚠️",
+          text: `${b.category} budget at ${Math.round(pct)}% — रु${(b.limit - spent).toLocaleString()} remaining`,
+        });
       }
     });
-
-   
 
     // Spending spike
     const lastMonth = (() => {
@@ -199,23 +212,35 @@ export default function useAI({
       d.setMonth(d.getMonth() - 1);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     })();
-    const thisExp = entries.filter(e => e.type === "expense" && !e.isTransfer && e.date.slice(0, 7) === thisMonth).reduce((s, e) => s + e.amount, 0);
-    const lastExp = entries.filter(e => e.type === "expense" && !e.isTransfer && e.date.slice(0, 7) === lastMonth).reduce((s, e) => s + e.amount, 0);
+    const thisExp = entries
+      .filter(e => e.type === "expense" && !e.is_transfer && e.date.slice(0, 7) === thisMonth)
+      .reduce((s, e) => s + Number(e.amount), 0);
+    const lastExp = entries
+      .filter(e => e.type === "expense" && !e.is_transfer && e.date.slice(0, 7) === lastMonth)
+      .reduce((s, e) => s + Number(e.amount), 0);
     if (lastExp > 0 && thisExp > lastExp * 1.3) {
       const pct = Math.round(((thisExp - lastExp) / lastExp) * 100);
-      newAlerts.push({ type: "warn", icon: "📈", text: `Spending is ${pct}% higher than last month` });
+      newAlerts.push({
+        type: "warn",
+        icon: "📈",
+        text: `Spending is ${pct}% higher than last month`,
+      });
     }
 
     // Savings goal pace
     savingsGoals.forEach(g => {
       const pct = (g.current / g.target) * 100;
       if (pct < 25 && g.target > 1000) {
-        newAlerts.push({ type: "info", icon: "🎯", text: `"${g.name}" goal is at ${Math.round(pct)}% — keep saving!` });
+        newAlerts.push({
+          type: "info",
+          icon: "🎯",
+          text: `"${g.name}" goal is at ${Math.round(pct)}% — keep saving!`,
+        });
       }
     });
 
     setAlerts(newAlerts.filter(a => !dismissedAlerts.has(a.text)).slice(0, 3));
-  }, [entries, budgets,  savingsGoals, thisMonth]);
+  }, [entries, budgets, savingsGoals, thisMonth]);
 
   // ── Auto-categorize note ───────────────────────────────────────
   const suggestCategory = useCallback((note, type = "expense") => {
@@ -236,57 +261,87 @@ Which category fits best? Respond ONLY with the category name, nothing else. If 
         const match = cats.find(c => c.name.toLowerCase() === suggested.toLowerCase());
         if (match) setCatSuggestion(match.name);
         else setCatSuggestion(suggested);
-      } catch { setCatSuggestion(null); }
-      finally { setCatLoading(false); }
+      } catch {
+        setCatSuggestion(null);
+      } finally {
+        setCatLoading(false);
+      }
     }, 600);
   }, [expCats, incCats]);
 
   const clearCatSuggestion = () => setCatSuggestion(null);
 
-  // ── Execute AI action ──────────────────────────────────────────
+  // ── Execute AI action via Supabase ─────────────────────────────
   const executeAction = useCallback(async (actionObj) => {
     if (!actionObj || actionObj.action === "none") return null;
 
     try {
       switch (actionObj.action) {
+
         case "add_transaction": {
-          const accountId = actionObj.accountId || accounts[0]?.id;
-          if (!accountId) return "⚠️ No account found to add transaction to.";
-          const created = await pb.collection("entries").create({
-            type: actionObj.type,
-            amount: actionObj.amount,
-            category: actionObj.category,
-            note: actionObj.note || "",
-            date: actionObj.date || today,
-            accountId,
-            userId,
-            isTransfer: false,
-          });
-          onEntriesChange(prev => [created, ...prev]);
+          // Use account_id (snake_case) — fall back to first account
+          const account_id = actionObj.account_id || accounts[0]?.id;
+          if (!account_id) return "⚠️ No account found to add transaction to.";
+
+          const { data, error } = await supabase
+            .from("entries")
+            .insert({
+              type:        actionObj.type,
+              amount:      actionObj.amount,
+              category:    actionObj.category,
+              note:        actionObj.note || "",
+              date:        actionObj.date || today,
+              account_id,
+              user_id:     userId,
+              is_transfer: false,
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          onEntriesChange(prev => [data, ...prev]);
           return `✅ Added ${actionObj.type} of रु${actionObj.amount} (${actionObj.category})`;
         }
 
         case "add_budget": {
           const existing = budgets.find(b => b.category === actionObj.category);
           if (existing) return `⚠️ Budget for ${actionObj.category} already exists (रु${existing.limit}).`;
-          const created = await pb.collection("budgets").create({
-            userId, category: actionObj.category, limit: actionObj.limit,
-          });
-          onBudgetsChange(prev => [...prev, created]);
+
+          const { data, error } = await supabase
+            .from("budgets")
+            .insert({
+              user_id:  userId,
+              category: actionObj.category,
+              limit:    actionObj.limit,
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          onBudgetsChange(prev => [...prev, data]);
           return `✅ Created budget: ${actionObj.category} — रु${actionObj.limit}/month`;
         }
 
         case "add_goal": {
-          const created = await pb.collection("savings_goals").create({
-            userId, name: actionObj.name, target: actionObj.target,
-            current: actionObj.current || 0,
-            accountId: accounts[0]?.id || "",
-          });
-          onSavingsGoalsChange(prev => [...prev, created]);
+          const { data, error } = await supabase
+            .from("savings_goals")
+            .insert({
+              user_id:    userId,
+              name:       actionObj.name,
+              target:     actionObj.target,
+              current:    actionObj.current || 0,
+              account_id: accounts[0]?.id || null,
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          onSavingsGoalsChange(prev => [...prev, data]);
           return `✅ Created savings goal: "${actionObj.name}" — रु${actionObj.target} target`;
         }
-
-      
 
         default:
           return null;
@@ -295,7 +350,7 @@ Which category fits best? Respond ONLY with the category name, nothing else. If 
       console.error("AI action failed:", err);
       return `⚠️ Action failed: ${err.message}`;
     }
-  }, [accounts, budgets, userId, today, onEntriesChange, onBudgetsChange, onSavingsGoalsChange, onBillsChange]);
+  }, [accounts, budgets, userId, today, onEntriesChange, onBudgetsChange, onSavingsGoalsChange]);
 
   // ── Send chat message ──────────────────────────────────────────
   const sendMessage = useCallback(async (text) => {
@@ -306,7 +361,9 @@ Which category fits best? Respond ONLY with the category name, nothing else. If 
     setChatLoading(true);
 
     try {
-      const context = buildFinancialContext({ entries, accounts, budgets, savingsGoals,  expCats, incCats });
+      const context = buildFinancialContext({
+        entries, accounts, budgets, savingsGoals, expCats, incCats,
+      });
       const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
 
       const reply = await callGroq([
@@ -320,10 +377,9 @@ Which category fits best? Respond ONLY with the category name, nothing else. If 
       let actionResult = null;
 
       if (reply.includes("ACTION:")) {
-        const parts   = reply.split("ACTION:");
-        displayReply  = parts[0].replace("REPLY:", "").trim();
-        const jsonStr = parts[1]?.trim();
-        const action  = parseJSON(jsonStr);
+        const parts  = reply.split("ACTION:");
+        displayReply = parts[0].replace("REPLY:", "").trim();
+        const action = parseJSON(parts[1]?.trim());
         if (action && action.action !== "none") {
           actionResult = await executeAction(action);
         }
@@ -345,20 +401,24 @@ Which category fits best? Respond ONLY with the category name, nothing else. If 
 
   // ── Natural language transaction parser ────────────────────────
   const parseNaturalTransaction = useCallback(async (text) => {
-    const context = buildFinancialContext({ entries, accounts, budgets, savingsGoals,  expCats, incCats });
+    const context = buildFinancialContext({
+      entries, accounts, budgets, savingsGoals, expCats, incCats,
+    });
     const reply = await callGroq([
       { role: "system", content: context },
       {
-        role: "user", content: `Parse this natural language into a transaction. Text: "${text}"
+        role: "user",
+        content: `Parse this natural language into a transaction. Text: "${text}"
 Respond ONLY with JSON:
-{"type":"expense|income","amount":number,"category":"from available categories","note":"text","date":"YYYY-MM-DD","accountId":"${accounts[0]?.id || ""}","confidence":0-1}
+{"type":"expense|income","amount":number,"category":"from available categories","note":"text","date":"YYYY-MM-DD","account_id":"${accounts[0]?.id || ""}","confidence":0-1}
 If you cannot parse it as a transaction, respond: {"confidence":0}
 Today is ${today}.`,
       },
     ], { temperature: 0.1, max_tokens: 200 });
     return parseJSON(reply);
-  }, [entries, accounts, budgets, savingsGoals,  expCats, incCats, today]);
+  }, [entries, accounts, budgets, savingsGoals, expCats, incCats, today]);
 
+  // ── Clear chat ─────────────────────────────────────────────────
   const clearChat = () => {
     const initial = [{
       role: "assistant",
@@ -368,13 +428,11 @@ Today is ${today}.`,
     localStorage.removeItem(STORAGE_KEY);
   };
 
-
-const dismissAlert = (text) => {
-  setDismissedAlerts(prev => new Set([...prev, text]));
-  setAlerts(prev => prev.filter(a => a.text !== text));
-};
-
-
+  // ── Dismiss alert ──────────────────────────────────────────────
+  const dismissAlert = (text) => {
+    setDismissedAlerts(prev => new Set([...prev, text]));
+    setAlerts(prev => prev.filter(a => a.text !== text));
+  };
 
   return {
     // Chat
@@ -382,7 +440,6 @@ const dismissAlert = (text) => {
     chatLoading,
     sendMessage,
     clearChat,
-  
 
     // Proactive alerts
     alerts,

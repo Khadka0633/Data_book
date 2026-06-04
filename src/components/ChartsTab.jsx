@@ -1,873 +1,9 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import pb from "../pb";
-
-// ── Chart.js CDN loader ────────────────────────────────────────────
-function ChartJsLoader() {
-  useEffect(() => {
-    if (window.Chart) return;
-    const s = document.createElement("script");
-    s.src =
-      "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
-    s.async = true;
-    document.head.appendChild(s);
-  }, []);
-  return null;
-}
-
-// ── Pie Chart ──────────────────────────────────────────────────────
-function PieChart({ data, label = "TOTAL", onSliceClick }) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (total === 0)
-    return (
-      <div className="pie-empty">
-        <span>No data yet</span>
-      </div>
-    );
-
-  let cumAngle = -90;
-  const radius = 90,
-    cx = 160,
-    cy = 160;
-
-  const slices = data
-    .filter((d) => d.value > 0)
-    .sort((a, b) => b.value - a.value)
-    .map((d) => {
-      const pct = d.value / total;
-      const angle = pct * 360;
-      const midAngle = cumAngle + angle / 2;
-      const sa = (cumAngle * Math.PI) / 180;
-      const ea = ((cumAngle + angle) * Math.PI) / 180;
-      const x1 = cx + radius * Math.cos(sa);
-      const y1 = cy + radius * Math.sin(sa);
-      const x2 = cx + radius * Math.cos(ea);
-      const y2 = cy + radius * Math.sin(ea);
-      const path = `M${cx},${cy} L${x1},${y1} A${radius},${radius} 0 ${angle > 180 ? 1 : 0} 1 ${x2},${y2} Z`;
-
-      // Label line points
-      const labelR = radius + 20;
-      const labelEndR = radius + 35;
-      const midRad = (midAngle * Math.PI) / 180;
-      const lx1 = cx + radius * Math.cos(midRad);
-      const ly1 = cy + radius * Math.sin(midRad);
-      const lx2 = cx + labelR * Math.cos(midRad);
-      const ly2 = cy + labelR * Math.sin(midRad);
-      const lx3 = cx + labelEndR * Math.cos(midRad);
-      const ly3 = cy + labelEndR * Math.sin(midRad);
-      const textX = cx + (labelEndR + 4) * Math.cos(midRad);
-      const textY = cy + (labelEndR + 4) * Math.sin(midRad);
-      const textAnchor = textX > cx ? "start" : "end";
-
-      cumAngle += angle;
-      return {
-        ...d,
-        path,
-        pct,
-        midAngle,
-        lx1,
-        ly1,
-        lx2,
-        ly2,
-        lx3,
-        ly3,
-        textX,
-        textY,
-        textAnchor,
-      };
-    });
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 20,
-      }}
-    >
-      {/* Pie SVG */}
-      <svg viewBox="0 0 320 320" style={{ width: "100%", maxWidth: 320 }}>
-        {slices.map((s, i) => (
-          <g
-            key={i}
-            onClick={() => onSliceClick && onSliceClick(s.label)}
-            style={{ cursor: "pointer" }}
-          >
-            <path
-              d={s.path}
-              fill={s.color}
-              opacity="0.9"
-              stroke="var(--surface)"
-              strokeWidth="1.5"
-            >
-              <title>
-                {s.label}: रु{s.value.toFixed(0)} ({(s.pct * 100).toFixed(1)}%)
-              </title>
-            </path>
-            {/* Only show label if slice is big enough */}
-            {s.pct > 0.04 && (
-              <>
-                <line
-                  x1={s.lx1}
-                  y1={s.ly1}
-                  x2={s.lx3}
-                  y2={s.ly3}
-                  stroke={s.color}
-                  strokeWidth="1"
-                  opacity="0.7"
-                />
-                <text
-                  x={s.textX}
-                  y={s.textY - 5}
-                  textAnchor={s.textAnchor}
-                  fill="var(--text)"
-                  fontSize="9"
-                  fontWeight="600"
-                >
-                  {s.label.length > 8 ? s.label.slice(0, 7) + "…" : s.label}
-                </text>
-                <text
-                  x={s.textX}
-                  y={s.textY + 7}
-                  textAnchor={s.textAnchor}
-                  fill={s.color}
-                  fontSize="8"
-                  fontWeight="700"
-                >
-                  {(s.pct * 100).toFixed(1)}%
-                </text>
-              </>
-            )}
-          </g>
-        ))}
-      </svg>
-
-      {/* Category list with badge */}
-      <div
-        style={{
-          width: "100%",
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-        }}
-      >
-        {slices.map((s, i) => (
-          <div
-            key={i}
-            onClick={() => onSliceClick && onSliceClick(s.label)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "10px 8px",
-              borderBottom: "1px solid var(--border)",
-              cursor: "pointer",
-              borderRadius: "var(--radius-sm)",
-              transition: "background 0.12s",
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "var(--surface-2)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "transparent")
-            }
-          >
-            {/* Percentage badge */}
-            <div
-              style={{
-                minWidth: 42,
-                height: 28,
-                borderRadius: 6,
-                background: s.color,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>
-                {Math.round(s.pct * 100)}%
-              </span>
-            </div>
-
-            {/* Category name */}
-            <span
-              style={{
-                flex: 1,
-                fontSize: 14,
-                fontWeight: 500,
-                color: "var(--text)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {s.label}
-            </span>
-
-            {/* Amount */}
-            <span
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: "var(--text)",
-                flexShrink: 0,
-              }}
-            >
-              रु{s.value.toLocaleString()}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Clickable Category List ────────────────────────────────────────
-function CategoryList({
-  entries,
-  type,
-  categories,
-  chartMonth,
-  onCategoryClick,
-}) {
-  const total = useMemo(
-    () =>
-      entries
-        .filter(
-          (e) =>
-            e.type === type &&
-            !e.isTransfer &&
-            e.date.slice(0, 7) === chartMonth,
-        )
-        .reduce((s, e) => s + e.amount, 0),
-    [entries, type, chartMonth],
-  );
-
-  const catTotals = useMemo(() => {
-    const map = {};
-    entries
-      .filter(
-        (e) =>
-          e.type === type && !e.isTransfer && e.date.slice(0, 7) === chartMonth,
-      )
-      .forEach((e) => {
-        map[e.category] = (map[e.category] || 0) + e.amount;
-      });
-    return categories
-      .filter((c) => c.name !== "Transfer" && map[c.name])
-      .map((c) => ({ name: c.name, color: c.color, amount: map[c.name] || 0 }))
-      .sort((a, b) => b.amount - a.amount);
-  }, [entries, type, categories, chartMonth]);
-
-  if (catTotals.length === 0)
-    return (
-      <p
-        style={{ color: "var(--text-muted)", fontSize: 13, padding: "16px 0" }}
-      >
-        No data this month.
-      </p>
-    );
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      {catTotals.map((cat) => {
-        const pct = total > 0 ? Math.round((cat.amount / total) * 100) : 0;
-        return (
-          <div
-            key={cat.name}
-            onClick={() => onCategoryClick(cat.name, type, cat.color)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "11px 0",
-              borderBottom: "1px solid var(--border)",
-              cursor: "pointer",
-              borderRadius: 6,
-              transition: "background 0.15s",
-              paddingLeft: 6,
-              paddingRight: 6,
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "var(--surface-2)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "transparent")
-            }
-          >
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: cat.color,
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                flex: 1,
-                fontSize: 14,
-                fontWeight: 500,
-                color: "var(--text)",
-                minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {cat.name}
-            </span>
-            <div
-              style={{
-                width: 80,
-                height: 5,
-                background: "var(--surface-2)",
-                borderRadius: 3,
-                overflow: "hidden",
-                flexShrink: 0,
-              }}
-            >
-              <div
-                style={{
-                  width: `${pct}%`,
-                  height: "100%",
-                  background: cat.color,
-                  borderRadius: 3,
-                }}
-              />
-            </div>
-            <span
-              style={{
-                fontSize: 12,
-                color: "var(--text-muted)",
-                width: 34,
-                textAlign: "right",
-                flexShrink: 0,
-              }}
-            >
-              {pct}%
-            </span>
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: "var(--text)",
-                width: 90,
-                textAlign: "right",
-                flexShrink: 0,
-              }}
-            >
-              रु{cat.amount.toLocaleString()}
-            </span>
-            <span
-              style={{
-                fontSize: 13,
-                color: "var(--text-muted)",
-                flexShrink: 0,
-              }}
-            >
-              ›
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Category Monthly Analysis Modal ───────────────────────────────
-function CategoryModal({ category, type, color, entries, onClose }) {
-  const canvasRef = useRef(null);
-  const chartRef = useRef(null);
-
-  const monthData = useMemo(() => {
-    const now = new Date();
-    const months = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const lbl = d.toLocaleDateString("en-US", {
-        month: "short",
-        year: "numeric",
-      });
-      return { key, lbl, total: 0, count: 0 };
-    });
-    entries
-      .filter(
-        (e) => e.category === category && e.type === type && !e.isTransfer,
-      )
-      .forEach((e) => {
-        const slot = months.find((m) => m.key === e.date.slice(0, 7));
-        if (slot) {
-          slot.total += e.amount;
-          slot.count += 1;
-        }
-      });
-    return months;
-  }, [entries, category, type]);
-
-  const catEntries = useMemo(
-    () =>
-      entries
-        .filter(
-          (e) => e.category === category && e.type === type && !e.isTransfer,
-        )
-        .sort((a, b) => b.date.localeCompare(a.date)),
-    [entries, category, type],
-  );
-
-  const allTimeTotal = catEntries.reduce((s, e) => s + e.amount, 0);
-  const avg = catEntries.length
-    ? Math.round(allTimeTotal / catEntries.length)
-    : 0;
-  const peakMonth = monthData.reduce(
-    (a, b) => (b.total > a.total ? b : a),
-    monthData[0],
-  );
-  const hasData = monthData.some((m) => m.total > 0);
-  const maxVal = Math.max(...monthData.map((m) => m.total), 1);
-
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    if (chartRef.current) {
-      chartRef.current.destroy();
-      chartRef.current = null;
-    }
-
-    const safeColor = color && color.length === 7 ? color : "#6366f1";
-    const r = parseInt(safeColor.slice(1, 3), 16);
-    const g = parseInt(safeColor.slice(3, 5), 16);
-    const b = parseInt(safeColor.slice(5, 7), 16);
-
-    const initChart = () => {
-      if (!window.Chart || !canvasRef.current) return;
-      chartRef.current = new window.Chart(canvasRef.current, {
-        type: "line",
-        data: {
-          labels: monthData.map((m) => m.lbl),
-          datasets: [
-            {
-              data: monthData.map((m) => m.total),
-              borderColor: safeColor,
-              backgroundColor: `rgba(${r},${g},${b},0.08)`,
-              pointBackgroundColor: monthData.map((m) =>
-                m.total > 0 ? safeColor : `rgba(${r},${g},${b},0.2)`,
-              ),
-              pointBorderColor: safeColor,
-              pointRadius: monthData.map((m) => (m.total > 0 ? 5 : 3)),
-              pointHoverRadius: 7,
-              borderWidth: 2,
-              fill: true,
-              tension: 0.4,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => {
-                  const slot = monthData[ctx.dataIndex];
-                  if (slot.total === 0) return "No transactions";
-                  return [
-                    `रु${slot.total.toLocaleString()}`,
-                    `${slot.count} transaction${slot.count !== 1 ? "s" : ""}`,
-                  ];
-                },
-              },
-              backgroundColor: "#1e1e2e",
-              titleColor: "#fff",
-              bodyColor: "#ccc",
-              padding: 10,
-              cornerRadius: 8,
-            },
-          },
-          scales: {
-            x: {
-              grid: { display: false },
-              ticks: {
-                font: { size: 10 },
-                color: "#888",
-                maxRotation: 45,
-                autoSkip: false,
-              },
-              border: { display: false },
-            },
-            y: {
-              beginAtZero: true,
-              grid: { color: "rgba(128,128,128,0.1)" },
-              border: { display: false },
-              ticks: {
-                font: { size: 11 },
-                color: "#888",
-                callback: (v) =>
-                  v === 0
-                    ? "0"
-                    : `रु${v >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`,
-                maxTicksLimit: 5,
-              },
-            },
-          },
-          animation: { duration: 400 },
-        },
-      });
-    };
-
-    if (window.Chart) initChart();
-    else {
-      const id = setInterval(() => {
-        if (window.Chart) {
-          clearInterval(id);
-          initChart();
-        }
-      }, 100);
-      return () => clearInterval(id);
-    }
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-        chartRef.current = null;
-      }
-    };
-  }, [monthData, color]);
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal-card"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          maxHeight: "90vh",
-          overflowY: "auto",
-          maxWidth: 520,
-          width: "100%",
-        }}
-      >
-        <div className="modal-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span
-              style={{
-                width: 12,
-                height: 12,
-                borderRadius: "50%",
-                background: color,
-                flexShrink: 0,
-                display: "inline-block",
-              }}
-            />
-            <h3 className="modal-title" style={{ marginBottom: 0 }}>
-              {category}
-            </h3>
-            <span
-              style={{
-                fontSize: 11,
-                padding: "2px 8px",
-                borderRadius: 99,
-                background:
-                  type === "expense"
-                    ? "rgba(239,68,68,0.12)"
-                    : "rgba(34,197,94,0.12)",
-                color: type === "expense" ? "var(--red)" : "var(--green)",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-              }}
-            >
-              {type}
-            </span>
-          </div>
-          <button className="modal-close" onClick={onClose}>
-            ✕
-          </button>
-        </div>
-
-        {catEntries.length === 0 ? (
-          <p
-            style={{
-              color: "var(--text-muted)",
-              fontSize: 14,
-              padding: "20px 0",
-            }}
-          >
-            No transactions found.
-          </p>
-        ) : (
-          <>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: 10,
-                marginBottom: 20,
-              }}
-            >
-              {[
-                {
-                  label: "All-time total",
-                  value: `रु${allTimeTotal.toLocaleString()}`,
-                },
-                { label: "Transactions", value: catEntries.length },
-                { label: "Avg per entry", value: `रु${avg.toLocaleString()}` },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  style={{
-                    background: "var(--surface-2)",
-                    borderRadius: "var(--radius-md)",
-                    padding: "10px 12px",
-                    textAlign: "center",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: "var(--text-muted)",
-                      marginBottom: 4,
-                    }}
-                  >
-                    {s.label}
-                  </p>
-                  <p style={{ fontSize: 15, fontWeight: 700, color }}>
-                    {s.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {peakMonth?.total > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  background: color + "14",
-                  border: `1px solid ${color}33`,
-                  borderRadius: "var(--radius-md)",
-                  padding: "9px 14px",
-                  marginBottom: 16,
-                }}
-              >
-                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  Peak month
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 700, color }}>
-                  {peakMonth.lbl} — रु{peakMonth.total.toLocaleString()}
-                </span>
-              </div>
-            )}
-
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--text-muted)",
-                marginBottom: 10,
-                fontWeight: 600,
-              }}
-            >
-              Last 12 months
-            </p>
-            <div
-              style={{
-                position: "relative",
-                width: "100%",
-                height: 260,
-                marginBottom: 24,
-              }}
-            >
-              <canvas
-                ref={canvasRef}
-                role="img"
-                aria-label={`Monthly trend for ${category}`}
-              />
-              {!hasData && (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                    No data in last 12 months
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--text-muted)",
-                marginBottom: 8,
-                fontWeight: 600,
-              }}
-            >
-              Month-by-month
-            </p>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 0,
-                marginBottom: 20,
-              }}
-            >
-              {[...monthData]
-                .reverse()
-                .filter((m) => m.total > 0)
-                .map((m) => {
-                  const pct = Math.round((m.total / maxVal) * 100);
-                  return (
-                    <div
-                      key={m.key}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        padding: "7px 0",
-                        borderBottom: "1px solid var(--border)",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color: "var(--text-muted)",
-                          width: 72,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {m.lbl}
-                      </span>
-                      <div
-                        style={{
-                          flex: 1,
-                          background: "var(--surface-2)",
-                          borderRadius: 4,
-                          height: 6,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: `${pct}%`,
-                            height: "100%",
-                            background: color,
-                            borderRadius: 4,
-                            opacity: 0.8,
-                          }}
-                        />
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color: "var(--text)",
-                          width: 90,
-                          textAlign: "right",
-                          flexShrink: 0,
-                          fontWeight: 600,
-                        }}
-                      >
-                        रु{m.total.toLocaleString()}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: "var(--text-muted)",
-                          width: 32,
-                          textAlign: "right",
-                          flexShrink: 0,
-                        }}
-                      >
-                        ×{m.count}
-                      </span>
-                    </div>
-                  );
-                })}
-            </div>
-
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--text-muted)",
-                marginBottom: 8,
-                fontWeight: 600,
-              }}
-            >
-              Recent transactions
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-              {catEntries.slice(0, 20).map((e) => (
-                <div
-                  key={e.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "9px 0",
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
-                  <div>
-                    <p
-                      style={{
-                        fontSize: 13,
-                        color: "var(--text)",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {e.note || e.category}
-                    </p>
-                    <p
-                      style={{
-                        fontSize: 11,
-                        color: "var(--text-muted)",
-                        marginTop: 2,
-                      }}
-                    >
-                      {new Date(e.date + "T00:00:00").toLocaleDateString(
-                        "en-US",
-                        { month: "short", day: "numeric", year: "numeric" },
-                      )}
-                    </p>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: type === "expense" ? "var(--red)" : "var(--green)",
-                    }}
-                  >
-                    {type === "income" ? "+" : "−"}रु{e.amount.toLocaleString()}
-                  </span>
-                </div>
-              ))}
-              {catEntries.length > 20 && (
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: "var(--text-muted)",
-                    textAlign: "center",
-                    padding: "10px 0",
-                  }}
-                >
-                  + {catEntries.length - 20} more transactions
-                </p>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-
+import { useState, useEffect, useMemo, useCallback } from "react";
+import supabase from "../supabase";
+import PieChart from "./Chart/PieChart";
+import ChartJsLoader from "./Chart/ChartJsLoader";
+import CategoryList from "./Chart/CategoryList";
+import CategoryModal from "./Chart/CategoryModal";
 
 // ── CSV Export ─────────────────────────────────────────────────────
 function exportCSV(entries, accounts, month) {
@@ -882,7 +18,8 @@ function exportCSV(entries, accounts, month) {
     "Transfer",
   ];
   const rows = filtered.map((e) => {
-    const acc = accounts.find((a) => a.id === e.accountId);
+    // account_id (snake_case)
+    const acc = accounts.find((a) => a.id === e.account_id);
     return [
       e.date,
       e.type,
@@ -890,7 +27,7 @@ function exportCSV(entries, accounts, month) {
       `"${(e.note || "").replace(/"/g, '""')}"`,
       e.amount,
       acc ? `${acc.icon} ${acc.name}` : "",
-      e.isTransfer ? "Yes" : "No",
+      e.is_transfer ? "Yes" : "No",
     ];
   });
   const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
@@ -920,89 +57,106 @@ export default function ChartsTab({
   const [showLifetime, setShowLifetime] = useState(false);
   const [chartTab, setChartTab] = useState("expense");
 
-  // Use prop entries if provided (lifted state), otherwise load own
+  // ── Sync prop entries / accounts ───────────────────────────────
   useEffect(() => {
-    if (propEntries) {
-      setEntries(propEntries);
-      return;
-    }
+    if (propEntries) setEntries(propEntries);
   }, [propEntries]);
 
   useEffect(() => {
-    if (propAccounts) {
-      setAccounts(propAccounts);
-      return;
-    }
+    if (propAccounts) setAccounts(propAccounts);
   }, [propAccounts]);
 
+  // ── Load categories (and optionally entries/accounts) from Supabase
   useEffect(() => {
-    const promises = [
-      pb
-        .collection("expense_categories")
-        .getFullList({ filter: `userId = '${userId}'` }),
-      pb
-        .collection("income_categories")
-        .getFullList({ filter: `userId = '${userId}'` }),
-    ];
-    if (!propEntries) {
-      promises.push(
-        pb
-          .collection("entries")
-          .getFullList({ filter: `userId = '${userId}'`, sort: "-date" }),
-      );
-    }
-    if (!propAccounts) {
-      promises.push(
-        pb
-          .collection("accounts")
-          .getFullList({ filter: `userId = '${userId}'` }),
-      );
-    }
-    Promise.all(promises)
-      .then(([ec, ic, ...rest]) => {
-        setExpCats(ec);
-        setIncCats(ic);
-        let i = 0;
-        if (!propEntries && rest[i]) {
-          setEntries(rest[i]);
-          i++;
+    const load = async () => {
+      try {
+        const promises = [
+          supabase
+            .from("expense_categories")
+            .select("*")
+            .eq("user_id", userId),
+          supabase
+            .from("income_categories")
+            .select("*")
+            .eq("user_id", userId),
+        ];
+
+        if (!propEntries) {
+          promises.push(
+            supabase
+              .from("entries")
+              .select("*")
+              .eq("user_id", userId)
+              .order("date", { ascending: false }),
+          );
         }
-        if (!propAccounts && rest[i]) {
-          setAccounts(rest[i]);
+
+        if (!propAccounts) {
+          promises.push(
+            supabase
+              .from("accounts")
+              .select("*")
+              .eq("user_id", userId),
+          );
         }
-      })
-      .finally(() => setLoading(false));
+
+        const results = await Promise.all(promises);
+
+        const [expRes, incRes] = results;
+        if (!expRes.error) setExpCats(expRes.data || []);
+        if (!incRes.error) setIncCats(incRes.data || []);
+
+        let idx = 2;
+        if (!propEntries && results[idx]) {
+          if (!results[idx].error) setEntries(results[idx].data || []);
+          idx++;
+        }
+        if (!propAccounts && results[idx]) {
+          if (!results[idx].error) setAccounts(results[idx].data || []);
+        }
+      } catch (err) {
+        console.error("Failed to load chart data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
   }, [userId]);
 
+  // ── Monthly stats — is_transfer (snake_case) ───────────────────
   const monthlyIncome = entries
     .filter(
       (e) =>
         e.type === "income" &&
-        !e.isTransfer &&
+        !e.is_transfer &&
         (showLifetime || e.date.slice(0, 7) === chartMonth),
     )
-    .reduce((s, e) => s + e.amount, 0);
+    .reduce((s, e) => s + Number(e.amount), 0);
+
   const monthlyExpense = entries
     .filter(
       (e) =>
         e.type === "expense" &&
-        !e.isTransfer &&
+        !e.is_transfer &&
         (showLifetime || e.date.slice(0, 7) === chartMonth),
     )
-    .reduce((s, e) => s + e.amount, 0);
+    .reduce((s, e) => s + Number(e.amount), 0);
+
   const monthlySavings = monthlyIncome - monthlyExpense;
 
+  // ── Pie data — is_transfer (snake_case) ───────────────────────
   const expensePieData = useMemo(() => {
     const map = {};
     entries
       .filter(
         (e) =>
           e.type === "expense" &&
-          !e.isTransfer &&
+          !e.is_transfer &&
           e.date.slice(0, 7) === chartMonth,
       )
       .forEach((e) => {
-        map[e.category] = (map[e.category] || 0) + e.amount;
+        map[e.category] = (map[e.category] || 0) + Number(e.amount);
       });
     return expCats
       .filter((c) => c.name !== "Transfer")
@@ -1016,11 +170,11 @@ export default function ChartsTab({
       .filter(
         (e) =>
           e.type === "income" &&
-          !e.isTransfer &&
+          !e.is_transfer &&
           e.date.slice(0, 7) === chartMonth,
       )
       .forEach((e) => {
-        map[e.category] = (map[e.category] || 0) + e.amount;
+        map[e.category] = (map[e.category] || 0) + Number(e.amount);
       });
     return incCats
       .filter((c) => c.name !== "Transfer")
@@ -1076,14 +230,7 @@ export default function ChartsTab({
           <h1 className="page-title">Charts</h1>
           <p className="page-sub">Visual breakdown of your finances</p>
         </div>
-        <div
-          style={{
-            display: "flex",
-            gap: 5,
-            alignItems: "center",
-           
-          }}
-        >
+        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
           <button
             onClick={() => setShowLifetime((v) => !v)}
             style={{
@@ -1144,6 +291,7 @@ export default function ChartsTab({
           </button>
         </div>
       </div>
+
       {/* Monthly summary */}
       <div className="stat-grid">
         <div className="stat-card income-card">
@@ -1171,49 +319,102 @@ export default function ChartsTab({
         </div>
       </div>
 
-     
+      {/* Mobile tab toggle */}
+      <div
+        className="chart-tab-toggle"
+        style={{
+          display: "flex",
+          gap: 0,
+          marginBottom: 16,
+          background: "var(--surface)",
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--border)",
+          overflow: "hidden",
+        }}
+      >
+        {["income", "expense"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setChartTab(t)}
+            style={{
+              flex: 1,
+              padding: "12px 0",
+              fontSize: 13,
+              fontWeight: 600,
+              border: "none",
+              cursor: "pointer",
+              background: "transparent",
+              color:
+                chartTab === t
+                  ? t === "income"
+                    ? "var(--green)"
+                    : "var(--red)"
+                  : "var(--text-muted)",
+              borderBottom:
+                chartTab === t
+                  ? `2px solid ${t === "income" ? "var(--green)" : "var(--red)"}`
+                  : "2px solid transparent",
+              marginBottom: "-1px",
+            }}
+          >
+            {t === "income" ? "💚 Income" : "❤️ Expenses"}
+          </button>
+        ))}
+      </div>
 
-     {/* Mobile tab toggle for charts */}
-<div className="chart-tab-toggle" style={{ display: "flex", gap: 0, marginBottom: 16, background: "var(--surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", overflow: "hidden" }}>
-  {["income", "expense"].map((t) => (
-    <button key={t} onClick={() => setChartTab(t)}
-      style={{
-        flex: 1, padding: "12px 0", fontSize: 13, fontWeight: 600,
-        border: "none", cursor: "pointer", background: "transparent",
-        color: chartTab === t ? (t === "income" ? "var(--green)" : "var(--red)") : "var(--text-muted)",
-        borderBottom: chartTab === t ? `2px solid ${t === "income" ? "var(--green)" : "var(--red)"}` : "2px solid transparent",
-        marginBottom: "-1px",
-      }}>
-      {t === "income" ? "💚 Income" : "❤️ Expenses"}
-    </button>
-  ))}
-</div>
+      <style>{`
+        @media (min-width: 768px) {
+          .chart-tab-toggle { display: none !important; }
+          .chart-two-col { display: grid !important; grid-template-columns: 1fr 1fr; gap: 16px; }
+          .chart-two-col .card { display: block !important; }
+        }
+        @media (max-width: 767px) {
+          .chart-two-col { display: block !important; }
+        }
+      `}</style>
 
-{/* Desktop: show both side by side. Mobile: show selected tab only */}
-<style>{`
-  @media (min-width: 768px) { 
-    .chart-tab-toggle { display: none !important; }
-    .chart-two-col { display: grid !important; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .chart-two-col .card { display: block !important; }
-  } 
-  @media (max-width: 767px) { 
-    .chart-two-col { display: block !important; } 
-  }
-`}</style>
-
-<div className="chart-two-col">
-  <div className="card" style={{ display: chartTab === "income" ? "block" : "none" }} id="income-chart-card">
-    <h2 className="card-title" style={{ color: "var(--green)", marginBottom: 16 }}>💚 Income Breakdown</h2>
-    <PieChart data={incomePieData} label="INCOME"
-      onSliceClick={(label) => { const cat = incCats.find((c) => c.name === label); openModal(label, "income", cat?.color || "#22c55e"); }} />
-  </div>
-  <div className="card" style={{ display: chartTab === "expense" ? "block" : "none" }} id="expense-chart-card">
-    <h2 className="card-title" style={{ color: "var(--red)", marginBottom: 16 }}>❤️ Expense Breakdown</h2>
-    <PieChart data={expensePieData} label="EXPENSES"
-      onSliceClick={(label) => { const cat = expCats.find((c) => c.name === label); openModal(label, "expense", cat?.color || "#ef4444"); }} />
-  </div>
-</div>
-    
+      <div className="chart-two-col">
+        <div
+          className="card"
+          style={{ display: chartTab === "income" ? "block" : "none" }}
+          id="income-chart-card"
+        >
+          <h2
+            className="card-title"
+            style={{ color: "var(--green)", marginBottom: 16 }}
+          >
+            💚 Income Breakdown
+          </h2>
+          <PieChart
+            data={incomePieData}
+            label="INCOME"
+            onSliceClick={(label) => {
+              const cat = incCats.find((c) => c.name === label);
+              openModal(label, "income", cat?.color || "#22c55e");
+            }}
+          />
+        </div>
+        <div
+          className="card"
+          style={{ display: chartTab === "expense" ? "block" : "none" }}
+          id="expense-chart-card"
+        >
+          <h2
+            className="card-title"
+            style={{ color: "var(--red)", marginBottom: 16 }}
+          >
+            ❤️ Expense Breakdown
+          </h2>
+          <PieChart
+            data={expensePieData}
+            label="EXPENSES"
+            onSliceClick={(label) => {
+              const cat = expCats.find((c) => c.name === label);
+              openModal(label, "expense", cat?.color || "#ef4444");
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }

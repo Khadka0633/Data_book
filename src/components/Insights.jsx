@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import pb from "../pb";
+import supabase from "../supabase";
 import MultiCurrencyWidget from "./MultiCurrencyWidget";
 import SportsTab from "./Sportstab";
+import GymCalendar from "./Insight/GymCalender";
+import TabButton from "./Insight/TabButton";
+import ChartJsLoader from "./Chart/ChartJsLoader";
+import NetWorthChart from "./Insight/NetWorthChart";
+import IncomeExpenseChart from "./Insight/IncomeExpenseChart";
 
 // ── Gym helpers ────────────────────────────────────────────────────
 function getDaysInMonth(year, month) {
@@ -24,461 +29,6 @@ function calcGymStreak(attendedSet) {
   }
   if (attendedSet.has(toDateStr(today))) streak++;
   return streak;
-}
-
-// ── Gym Calendar ───────────────────────────────────────────────────
-function GymCalendar({ year, month, attended, today, onToggle }) {
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDay = getFirstDayOfMonth(year, month);
-  const todayStr = toDateStr(today);
-  const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-
-  const cells = [];
-  for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const isToday = dateStr === todayStr;
-    const isAttended = attended.has(dateStr);
-    const isFuture = dateStr > todayStr;
-    cells.push(
-      <button
-        key={dateStr}
-        onClick={() => !isFuture && onToggle(dateStr)}
-        style={{
-          aspectRatio: "1",
-          borderRadius: 6,
-          border: isToday
-            ? "1.5px solid var(--accent)"
-            : "1px solid transparent",
-          background: isAttended ? "rgba(99,102,241,0.18)" : "var(--surface-2)",
-          cursor: isFuture ? "default" : "pointer",
-          opacity: isFuture ? 0.3 : 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexDirection: "column",
-          gap: 1,
-          transition: "background 0.15s, transform 0.1s",
-          padding: 0,
-        }}
-        onMouseEnter={(e) => {
-          if (!isFuture) e.currentTarget.style.transform = "scale(1.08)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "scale(1)";
-        }}
-      >
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: isToday ? 700 : 500,
-            color: isAttended
-              ? "var(--accent)"
-              : isToday
-                ? "var(--text)"
-                : "var(--text-muted)",
-            lineHeight: 1,
-          }}
-        >
-          {d}
-        </span>
-        {isAttended && (
-          <span style={{ fontSize: 6, color: "var(--accent)", lineHeight: 1 }}>
-            ●
-          </span>
-        )}
-      </button>,
-    );
-  }
-
-  return (
-    <div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7, 1fr)",
-          gap: 3,
-          marginBottom: 3,
-        }}
-      >
-        {weekDays.map((d) => (
-          <div
-            key={d}
-            style={{
-              textAlign: "center",
-              fontSize: 9,
-              fontWeight: 600,
-              color: "var(--text-muted)",
-              padding: "3px 0",
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-            }}
-          >
-            {d}
-          </div>
-        ))}
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7, 1fr)",
-          gap: 3,
-        }}
-      >
-        {cells}
-      </div>
-    </div>
-  );
-}
-
-// ── Tab Button ─────────────────────────────────────────────────────
-function TabButton({ id, label, icon, active, onClick }) {
-  return (
-    <button
-      onClick={() => onClick(id)}
-      style={{
-        flex: 1,
-        padding: "10px 8px",
-        fontSize: 13,
-        fontWeight: 600,
-        border: "none",
-        cursor: "pointer",
-        borderRadius: "var(--radius-sm)",
-        background: active ? "var(--surface)" : "transparent",
-        color: active ? "var(--text)" : "var(--text-muted)",
-        boxShadow: active ? "0 1px 4px rgba(0,0,0,0.15)" : "none",
-        transition: "all 0.15s",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 5,
-        whiteSpace: "nowrap",
-      }}
-    >
-      <span>{icon}</span>
-      <span className="tab-label">{label}</span>
-    </button>
-  );
-}
-
-function ChartJsLoader() {
-  useEffect(() => {
-    if (window.Chart) return;
-    const s = document.createElement("script");
-    s.src =
-      "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
-    s.async = true;
-    document.head.appendChild(s);
-  }, []);
-  return null;
-}
-
-// ── Net Worth Timeline Chart ───────────────────────────────────────
-function NetWorthChart({ entries, accounts }) {
-  const canvasRef = useRef(null);
-  const chartRef = useRef(null);
-
-  const monthData = useMemo(() => {
-    const now = new Date();
-    const months = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const lbl = d.toLocaleDateString("en-US", {
-        month: "short",
-        year: "2-digit",
-      });
-      return { key, lbl, netWorth: 0 };
-    });
-
-    // Compute cumulative net worth up to end of each month
-    months.forEach((m, idx) => {
-      const cutoffMonth = m.key;
-      let total = 0;
-      entries
-        .filter((e) => e.date.slice(0, 7) <= cutoffMonth)
-        .forEach((e) => {
-          total += e.type === "income" ? e.amount : -e.amount;
-        });
-      m.netWorth = total;
-    });
-
-    return months;
-  }, [entries, accounts]);
-
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    if (chartRef.current) {
-      chartRef.current.destroy();
-      chartRef.current = null;
-    }
-
-    const initChart = () => {
-      if (!window.Chart || !canvasRef.current) return;
-      const maxVal = Math.max(...monthData.map((m) => m.netWorth));
-      const isPositive = monthData[monthData.length - 1]?.netWorth >= 0;
-
-      chartRef.current = new window.Chart(canvasRef.current, {
-        type: "line",
-        data: {
-          labels: monthData.map((m) => m.lbl),
-          datasets: [
-            {
-              label: "Net Worth",
-              data: monthData.map((m) => m.netWorth),
-              borderColor: isPositive ? "#22c55e" : "#ef4444",
-              backgroundColor: isPositive
-                ? "rgba(34,197,94,0.08)"
-                : "rgba(239,68,68,0.08)",
-              pointBackgroundColor: isPositive ? "#22c55e" : "#ef4444",
-              pointRadius: 4,
-              pointHoverRadius: 7,
-              borderWidth: 2.5,
-              fill: true,
-              tension: 0.3,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => `Net Worth: रु${ctx.parsed.y.toLocaleString()}`,
-              },
-              backgroundColor: "#1e1e2e",
-              titleColor: "#fff",
-              bodyColor: "#ccc",
-              padding: 10,
-              cornerRadius: 8,
-            },
-          },
-          scales: {
-            x: {
-              grid: { display: false },
-              ticks: {
-                font: { size: 10 },
-                color: "#888",
-                maxRotation: 0,
-                autoSkip: false,
-              },
-              border: { display: false },
-            },
-            y: {
-              grid: { color: "rgba(128,128,128,0.1)" },
-              border: { display: false },
-              ticks: {
-                font: { size: 11 },
-                color: "#888",
-                callback: (v) =>
-                  `रु${v >= 1000 || v <= -1000 ? (v / 1000).toFixed(0) + "k" : v}`,
-                maxTicksLimit: 5,
-              },
-            },
-          },
-          animation: { duration: 600 },
-        },
-      });
-    };
-
-    if (window.Chart) initChart();
-    else {
-      const id = setInterval(() => {
-        if (window.Chart) {
-          clearInterval(id);
-          initChart();
-        }
-      }, 100);
-      return () => clearInterval(id);
-    }
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-        chartRef.current = null;
-      }
-    };
-  }, [monthData]);
-
-  const current = monthData[monthData.length - 1]?.netWorth || 0;
-  const prev = monthData[monthData.length - 2]?.netWorth || 0;
-  const change = current - prev;
-
-  return (
-    <div className="card" style={{ marginBottom: 20 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 16,
-        }}
-      >
-        <h2 className="card-title" style={{ marginBottom: 0 }}>
-          📈 Net Worth Timeline
-        </h2>
-        <div style={{ textAlign: "right" }}>
-          <p
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: current >= 0 ? "var(--green)" : "var(--red)",
-            }}
-          >
-            रु{current.toLocaleString()}
-          </p>
-          <p
-            style={{
-              fontSize: 11,
-              color: change >= 0 ? "var(--green)" : "var(--red)",
-              marginTop: 2,
-            }}
-          >
-            {change >= 0 ? "+" : ""}रु{change.toLocaleString()} vs last month
-          </p>
-        </div>
-      </div>
-      <div style={{ position: "relative", width: "100%", height: 220 }}>
-        <canvas ref={canvasRef} />
-        {entries.length === 0 && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
-              No data yet
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function IncomeExpenseChart({ entries }) {
-  const canvasRef = useRef(null);
-  const chartRef = useRef(null);
-
-  const monthData = useMemo(() => {
-    const now = new Date();
-    return Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const lbl = d.toLocaleDateString("en-US", { month: "short" });
-      const income = entries
-        .filter(
-          (e) =>
-            e.type === "income" && !e.isTransfer && e.date.slice(0, 7) === key,
-        )
-        .reduce((s, e) => s + e.amount, 0);
-      const expense = entries
-        .filter(
-          (e) =>
-            e.type === "expense" && !e.isTransfer && e.date.slice(0, 7) === key,
-        )
-        .reduce((s, e) => s + e.amount, 0);
-      return { key, lbl, income, expense };
-    });
-  }, [entries]);
-
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    if (chartRef.current) {
-      chartRef.current.destroy();
-      chartRef.current = null;
-    }
-    const initChart = () => {
-      if (!window.Chart || !canvasRef.current) return;
-      chartRef.current = new window.Chart(canvasRef.current, {
-        type: "bar",
-        data: {
-          labels: monthData.map((m) => m.lbl),
-          datasets: [
-            {
-              label: "Income",
-              data: monthData.map((m) => m.income),
-              backgroundColor: "rgba(34,197,94,0.7)",
-              borderRadius: 4,
-            },
-            {
-              label: "Expense",
-              data: monthData.map((m) => m.expense),
-              backgroundColor: "rgba(239,68,68,0.7)",
-              borderRadius: 4,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: true,
-              position: "top",
-              labels: { color: "#888", font: { size: 11 }, boxWidth: 12 },
-            },
-            tooltip: {
-              callbacks: {
-                label: (ctx) =>
-                  `${ctx.dataset.label}: रु${ctx.parsed.y.toLocaleString()}`,
-              },
-              backgroundColor: "#1e1e2e",
-              titleColor: "#fff",
-              bodyColor: "#ccc",
-              padding: 10,
-              cornerRadius: 8,
-            },
-          },
-          scales: {
-            x: {
-              grid: { display: false },
-              ticks: { color: "#888", font: { size: 11 } },
-              border: { display: false },
-            },
-            y: {
-              grid: { color: "rgba(128,128,128,0.1)" },
-              border: { display: false },
-              ticks: {
-                color: "#888",
-                font: { size: 11 },
-                callback: (v) =>
-                  `रु${v >= 1000 ? (v / 1000).toFixed(0) + "k" : v}`,
-                maxTicksLimit: 5,
-              },
-            },
-          },
-          animation: { duration: 400 },
-        },
-      });
-    };
-    if (window.Chart) initChart();
-    else {
-      const id = setInterval(() => {
-        if (window.Chart) {
-          clearInterval(id);
-          initChart();
-        }
-      }, 100);
-      return () => clearInterval(id);
-    }
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-        chartRef.current = null;
-      }
-    };
-  }, [monthData]);
-
-  return (
-    <div style={{ position: "relative", width: "100%", height: 220 }}>
-      <canvas ref={canvasRef} />
-    </div>
-  );
 }
 
 // ── Main Component ─────────────────────────────────────────────────
@@ -523,14 +73,20 @@ export default function Insights({
   const [gymViewYear, setGymViewYear] = useState(todayObj.getFullYear());
   const [gymViewMonth, setGymViewMonth] = useState(todayObj.getMonth());
 
+  // ── Load gym attendance from Supabase ──────────────────────────
   const loadGym = useCallback(async () => {
     setGymLoading(true);
     try {
-      const res = await pb
-        .collection("gym_attendance")
-        .getFullList({ filter: `userId = '${userId}'`, sort: "date" });
+      const { data, error } = await supabase
+        .from("gym_attendance")
+        .select("*")
+        .eq("user_id", userId)
+        .order("date");
+
+      if (error) throw error;
+
       const map = {};
-      res.forEach((r) => (map[r.date] = r.id));
+      (data || []).forEach((r) => (map[r.date] = r.id));
       setGymRecords(map);
     } catch (err) {
       console.error("Failed to load gym attendance:", err);
@@ -543,22 +99,36 @@ export default function Insights({
     loadGym();
   }, [loadGym]);
 
+  // ── Toggle gym attendance ──────────────────────────────────────
   const handleGymToggle = async (dateStr) => {
     if (gymSaving) return;
     setGymSaving(true);
     try {
       if (gymRecords[dateStr]) {
-        await pb.collection("gym_attendance").delete(gymRecords[dateStr]);
+        // Delete
+        const { error } = await supabase
+          .from("gym_attendance")
+          .delete()
+          .eq("id", gymRecords[dateStr]);
+
+        if (error) throw error;
+
         setGymRecords((prev) => {
           const next = { ...prev };
           delete next[dateStr];
           return next;
         });
       } else {
-        const created = await pb
-          .collection("gym_attendance")
-          .create({ userId, date: dateStr });
-        setGymRecords((prev) => ({ ...prev, [dateStr]: created.id }));
+        // Insert
+        const { data, error } = await supabase
+          .from("gym_attendance")
+          .insert({ user_id: userId, date: dateStr })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setGymRecords((prev) => ({ ...prev, [dateStr]: data.id }));
       }
     } catch (err) {
       console.error("Failed to toggle gym attendance:", err);
@@ -567,6 +137,39 @@ export default function Insights({
     }
   };
 
+  // ── Load bills from Supabase ───────────────────────────────────
+  useEffect(() => {
+    if (propBills) {
+      setBills(propBills);
+      setLoading(false);
+      return;
+    }
+
+    const loadBills = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("bills")
+          .select("*")
+          .eq("user_id", userId);
+
+        if (error) throw error;
+        setBills(data || []);
+      } catch (err) {
+        console.error("Failed to load bills:", err);
+        setBills([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadBills();
+  }, [userId, propBills]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [ai?.messages, ai?.chatLoading]);
+
+  // ── Gym derived values ─────────────────────────────────────────
   const gymAttended = useMemo(
     () => new Set(Object.keys(gymRecords)),
     [gymRecords],
@@ -593,6 +196,7 @@ export default function Insights({
     gymViewMonth,
     1,
   ).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
   const changeGymMonth = (dir) => {
     const d = new Date(gymViewYear, gymViewMonth + dir, 1);
     setGymViewYear(d.getFullYear());
@@ -600,12 +204,13 @@ export default function Insights({
   };
 
   // ── Search results ─────────────────────────────────────────────
+  // NOTE: entries use is_transfer (Supabase snake_case)
   const searchResults = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     const now = new Date();
     return entries
       .filter((e) => {
-        if (e.isTransfer) return false;
+        if (e.is_transfer) return false;
         if (filterType !== "all" && e.type !== filterType) return false;
         if (filterCategory !== "all" && e.category !== filterCategory)
           return false;
@@ -647,27 +252,11 @@ export default function Insights({
     thisMonth,
   ]);
 
-  useEffect(() => {
-    if (propBills) {
-      setBills(propBills);
-      return;
-    }
-    pb.collection("bills")
-      .getFullList({ filter: `userId = '${userId}'` })
-      .catch(() => [])
-      .then((b) => setBills(b))
-      .finally(() => setLoading(false));
-  }, [userId, propBills]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [ai?.messages, ai?.chatLoading]);
-
   // ── Finance streak ─────────────────────────────────────────────
   const streak = useMemo(() => {
     const expenseDates = new Set(
       entries
-        .filter((e) => e.type === "expense" && !e.isTransfer)
+        .filter((e) => e.type === "expense" && !e.is_transfer)
         .map((e) => e.date),
     );
     let count = 0;
@@ -688,24 +277,26 @@ export default function Insights({
         .filter(
           (e) =>
             e.type === "income" &&
-            !e.isTransfer &&
+            !e.is_transfer &&
             e.date.slice(0, 7) === thisMonth,
         )
-        .reduce((s, e) => s + e.amount, 0),
+        .reduce((s, e) => s + Number(e.amount), 0),
     [entries, thisMonth],
   );
+
   const thisMonthExpense = useMemo(
     () =>
       entries
         .filter(
           (e) =>
             e.type === "expense" &&
-            !e.isTransfer &&
+            !e.is_transfer &&
             e.date.slice(0, 7) === thisMonth,
         )
-        .reduce((s, e) => s + e.amount, 0),
+        .reduce((s, e) => s + Number(e.amount), 0),
     [entries, thisMonth],
   );
+
   const savedRate =
     thisMonthIncome > 0
       ? Math.round(
@@ -716,20 +307,22 @@ export default function Insights({
   // ── Static insights ────────────────────────────────────────────
   const staticInsights = useMemo(() => {
     const list = [];
+
     const spendByCat = (month) => {
       const map = {};
       entries
         .filter(
           (e) =>
             e.type === "expense" &&
-            !e.isTransfer &&
+            !e.is_transfer &&
             e.date.slice(0, 7) === month,
         )
         .forEach((e) => {
-          map[e.category] = (map[e.category] || 0) + e.amount;
+          map[e.category] = (map[e.category] || 0) + Number(e.amount);
         });
       return map;
     };
+
     const thisSpend = spendByCat(thisMonth);
     const lastSpend = spendByCat(lastMonth);
     const thisTotal = Object.values(thisSpend).reduce((a, b) => a + b, 0);
@@ -744,6 +337,7 @@ export default function Insights({
           type: diff > 0 ? "warn" : "good",
         });
     }
+
     new Set([...Object.keys(thisSpend), ...Object.keys(lastSpend)]).forEach(
       (cat) => {
         const t = thisSpend[cat] || 0,
@@ -759,6 +353,7 @@ export default function Insights({
         }
       },
     );
+
     const topCat = Object.entries(thisSpend).sort((a, b) => b[1] - a[1])[0];
     if (topCat)
       list.push({
@@ -766,6 +361,7 @@ export default function Insights({
         text: `Top category: ${topCat[0]} at रु${topCat[1].toLocaleString()}.`,
         type: "info",
       });
+
     if (thisMonthIncome > 0 && thisTotal > 0) {
       const rate = Math.round(
         ((thisMonthIncome - thisTotal) / thisMonthIncome) * 100,
@@ -784,6 +380,7 @@ export default function Insights({
             },
       );
     }
+
     const now = new Date();
     const daysPassed = now.getDate();
     const daysLeft =
@@ -791,9 +388,12 @@ export default function Insights({
     if (thisTotal > 0 && daysPassed > 3)
       list.push({
         icon: "🔮",
-        text: `At current rate, you'll spend ~रु${Math.round(thisTotal + (thisTotal / daysPassed) * daysLeft).toLocaleString()} this month.`,
+        text: `At current rate, you'll spend ~रु${Math.round(
+          thisTotal + (thisTotal / daysPassed) * daysLeft,
+        ).toLocaleString()} this month.`,
         type: "info",
       });
+
     return list.slice(0, 6);
   }, [entries, thisMonth, lastMonth, thisMonthIncome]);
 
@@ -893,7 +493,7 @@ export default function Insights({
             onChange={(e) => setSearchQuery(e.target.value)}
           />
 
-          {/* Search results — only show when searching */}
+          {/* Search results */}
           {searchQuery.trim() && (
             <div className="card" style={{ padding: "12px 16px" }}>
               {searchResults.length === 0 ? (
@@ -960,11 +560,13 @@ export default function Insights({
                           flexShrink: 0,
                           marginLeft: 8,
                           color:
-                            e.type === "income" ? "var(--green)" : "var(--red)",
+                            e.type === "income"
+                              ? "var(--green)"
+                              : "var(--red)",
                         }}
                       >
                         {e.type === "income" ? "+" : "−"}रु
-                        {e.amount.toLocaleString()}
+                        {Number(e.amount).toLocaleString()}
                       </span>
                     </div>
                   ))}
@@ -1042,55 +644,53 @@ export default function Insights({
             ))}
           </div>
 
-          {/* Charts card with tabs */}
-         
-            <div
-              style={{
-                display: "flex",
-                gap: 0,
-                marginBottom: 16,
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              {[
-                { id: "networth", label: "Net Worth" },
-                { id: "incomevexp", label: "Income vs Expense" },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setChartView(t.id)}
-                  style={{
-                    flex: 1,
-                    padding: "10px 0",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    border: "none",
-                    cursor: "pointer",
-                    background: "transparent",
-                    color:
-                      chartView === t.id
-                        ? "var(--accent)"
-                        : "var(--text-muted)",
-                    borderBottom:
-                      chartView === t.id
-                        ? "2px solid var(--accent)"
-                        : "2px solid transparent",
-                    marginBottom: "-1px",
-                  }}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            {chartView === "networth" && (
-              <NetWorthChart entries={entries} accounts={accounts} />
-            )}
-            {chartView === "incomevexp" && (
-               <div className="card">
+          {/* Charts */}
+          <div
+            style={{
+              display: "flex",
+              gap: 0,
+              marginBottom: 16,
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            {[
+              { id: "networth", label: "Net Worth" },
+              { id: "incomevexp", label: "Income vs Expense" },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setChartView(t.id)}
+                style={{
+                  flex: 1,
+                  padding: "10px 0",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  border: "none",
+                  cursor: "pointer",
+                  background: "transparent",
+                  color:
+                    chartView === t.id ? "var(--accent)" : "var(--text-muted)",
+                  borderBottom:
+                    chartView === t.id
+                      ? "2px solid var(--accent)"
+                      : "2px solid transparent",
+                  marginBottom: "-1px",
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {chartView === "networth" && (
+            <NetWorthChart entries={entries} accounts={accounts} />
+          )}
+          {chartView === "incomevexp" && (
+            <div className="card">
               <IncomeExpenseChart entries={entries} />
-              </div>
-            )}
-          
+            </div>
+          )}
+
           <ChartJsLoader />
 
           {/* Quick Insights */}
@@ -1154,245 +754,10 @@ export default function Insights({
         </>
       )}
 
-
-      {activeTab === "sports" && <SportsTab />}
-
       {/* ══════════════════════════════════════════
-          TAB: SEARCH
+          TAB: SPORTS
       ══════════════════════════════════════════ */}
-      {activeTab === "search" && (
-        <div className="card">
-          <h2 className="card-title" style={{ marginBottom: 14 }}>
-            🔍 Search Transactions
-          </h2>
-          <input
-            className="input"
-            placeholder="Search by note, category, amount..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ marginBottom: 10 }}
-          />
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-              marginBottom: 10,
-            }}
-          >
-            <select
-              className="input"
-              style={{ flex: 1, minWidth: 100 }}
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-            >
-              <option value="all">All types</option>
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-            </select>
-            <select
-              className="input"
-              style={{ flex: 1, minWidth: 120 }}
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-            >
-              <option value="all">All categories</option>
-              {[...expCats, ...incCats].map((c) => (
-                <option key={c.id} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input"
-              style={{ flex: 1, minWidth: 100 }}
-              value={filterPeriod}
-              onChange={(e) => setFilterPeriod(e.target.value)}
-            >
-              <option value="all">All time</option>
-              <option value="today">Today</option>
-              <option value="week">This week</option>
-              <option value="month">This month</option>
-              <option value="last3">Last 3 months</option>
-            </select>
-            {(searchQuery ||
-              filterType !== "all" ||
-              filterCategory !== "all" ||
-              filterPeriod !== "all") && (
-              <button
-                onClick={() => {
-                  setSearchQuery("");
-                  setFilterType("all");
-                  setFilterCategory("all");
-                  setFilterPeriod("all");
-                }}
-                style={{
-                  background: "rgba(239,68,68,0.08)",
-                  color: "var(--red)",
-                  border: "1px solid rgba(239,68,68,0.2)",
-                  borderRadius: "var(--radius-sm)",
-                  padding: "8px 12px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                ✕ Clear
-              </button>
-            )}
-          </div>
-
-          {searchQuery ||
-          filterType !== "all" ||
-          filterCategory !== "all" ||
-          filterPeriod !== "all" ? (
-            <>
-              <p
-                style={{
-                  fontSize: 11,
-                  color: "var(--text-muted)",
-                  marginBottom: 8,
-                }}
-              >
-                {searchResults.length} result
-                {searchResults.length !== 1 ? "s" : ""}
-                {searchResults.length > 0 && (
-                  <span style={{ marginLeft: 8, color: "var(--accent)" }}>
-                    Total: रु
-                    {searchResults
-                      .reduce((s, e) => s + e.amount, 0)
-                      .toLocaleString()}
-                  </span>
-                )}
-              </p>
-              {searchResults.length === 0 ? (
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: "var(--text-muted)",
-                    textAlign: "center",
-                    padding: "20px 0",
-                  }}
-                >
-                  No transactions found.
-                </p>
-              ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    maxHeight: 400,
-                    overflowY: "auto",
-                  }}
-                >
-                  {searchResults.slice(0, 50).map((e, idx) => (
-                    <div
-                      key={`${e.id}-${idx}`}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "9px 0",
-                        borderBottom: "1px solid var(--border)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          minWidth: 0,
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: "50%",
-                            flexShrink: 0,
-                            background:
-                              [...expCats, ...incCats].find(
-                                (c) => c.name === e.category,
-                              )?.color || "#6366f1",
-                          }}
-                        />
-                        <div style={{ minWidth: 0 }}>
-                          <p
-                            style={{
-                              fontSize: 13,
-                              color: "var(--text)",
-                              fontWeight: 500,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {e.note || e.category}
-                          </p>
-                          <p
-                            style={{
-                              fontSize: 11,
-                              color: "var(--text-muted)",
-                              marginTop: 1,
-                            }}
-                          >
-                            {e.category} ·{" "}
-                            {new Date(e.date + "T00:00:00").toLocaleDateString(
-                              "en-US",
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              },
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 700,
-                          flexShrink: 0,
-                          marginLeft: 8,
-                          color:
-                            e.type === "income" ? "var(--green)" : "var(--red)",
-                        }}
-                      >
-                        {e.type === "income" ? "+" : "−"}रु
-                        {e.amount.toLocaleString()}
-                      </span>
-                    </div>
-                  ))}
-                  {searchResults.length > 50 && (
-                    <p
-                      style={{
-                        fontSize: 12,
-                        color: "var(--text-muted)",
-                        textAlign: "center",
-                        padding: "10px 0",
-                      }}
-                    >
-                      Showing 50 of {searchResults.length} results
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--text-muted)",
-                textAlign: "center",
-                padding: "16px 0",
-              }}
-            >
-              Use filters above to search all your transactions
-            </p>
-          )}
-        </div>
-      )}
+      {activeTab === "sports" && <SportsTab />}
 
       {/* ══════════════════════════════════════════
           TAB: GYM
@@ -1838,9 +1203,7 @@ export default function Insights({
             ].map((p) => (
               <button
                 key={p}
-                onClick={() => {
-                  ai?.sendMessage(p);
-                }}
+                onClick={() => ai?.sendMessage(p)}
                 style={{
                   fontSize: 11,
                   padding: "5px 10px",
@@ -1899,8 +1262,7 @@ export default function Insights({
               textAlign: "center",
             }}
           >
-            Nexus AI knows your transactions, budgets and goals · Chat history
-            saved
+            Nexus AI knows your transactions, budgets and goals · Chat history saved
           </p>
         </div>
       )}

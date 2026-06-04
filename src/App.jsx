@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import pb from "./pb";
+import supabase from "./supabase";
 import Login from "./components/Login";
 import Sidebar from "./components/Sidebar";
 import ExpenseTracker from "./components/ExpenseTracker";
@@ -95,7 +95,8 @@ function AlertBanner({ alerts, onDismiss }) {
 
 // ── App ────────────────────────────────────────────────────────────
 export default function App() {
-  const [user, setUser] = useState(() => pb.authStore.model);
+  const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState("expense");
   const [entries, setEntries] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -105,54 +106,121 @@ export default function App() {
   const [savingsGoals, setSavingsGoals] = useState([]);
   const [appReady, setAppReady] = useState(false);
   const [alertsDismissed, setAlertsDismissed] = useState(false);
-  const [showTransfer, setShowTransfer] = useState(false); // ← Transfer fix
+  const [showTransfer, setShowTransfer] = useState(false);
 
   const { theme, toggle: toggleTheme } = useTheme();
   const userId = user?.id;
   const today = new Date().toISOString().split("T")[0];
+
+  // ── Auth listener — keeps session in sync ──────────────────────
+  useEffect(() => {
+    // Check existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.name || session.user.email,
+        });
+      }
+      setAuthChecked(true);
+    });
+
+    // Listen for auth changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            name: session.user.user_metadata?.name || session.user.email,
+          });
+        } else {
+          setUser(null);
+          setAppReady(false);
+          setEntries([]);
+          setAccounts([]);
+          setExpCats([]);
+          setIncCats([]);
+          setBudgets([]);
+          setSavingsGoals([]);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // ── Data loading ───────────────────────────────────────────────
   const loadShared = useCallback(async () => {
     if (!userId) return;
     try {
       const [
-        entriesRes,
-        accountsRes,
-        expCatsRes,
-        incCatsRes,
-        budgetsRes,
-        goalsRes,
-        billsRes,
+        { data: entriesRes },
+        { data: accountsRes },
+        { data: expCatsRes },
+        { data: incCatsRes },
+        { data: budgetsRes },
+        { data: goalsRes },
       ] = await Promise.all([
-        pb
-          .collection("entries")
-          .getFullList({ filter: `userId = '${userId}'`, sort: "-date" }),
-        pb
-          .collection("accounts")
-          .getFullList({ filter: `userId = '${userId}'` }),
-        pb
-          .collection("expense_categories")
-          .getFullList({ filter: `userId = '${userId}'` })
-          .catch(() => []),
-        pb
-          .collection("income_categories")
-          .getFullList({ filter: `userId = '${userId}'` })
-          .catch(() => []),
-        pb
-          .collection("budgets")
-          .getFullList({ filter: `userId = '${userId}'` })
-          .catch(() => []),
-        pb
-          .collection("savings_goals")
-          .getFullList({ filter: `userId = '${userId}'` })
-          .catch(() => []),
+        supabase
+          .from("entries")
+          .select("*")
+          .eq("user_id", userId)
+          .order("date", { ascending: false }),
+        supabase
+          .from("accounts")
+          .select("*")
+          .eq("user_id", userId),
+        supabase
+          .from("expense_categories")
+          .select("*")
+          .eq("user_id", userId),
+        supabase
+          .from("income_categories")
+          .select("*")
+          .eq("user_id", userId),
+        supabase
+          .from("budgets")
+          .select("*")
+          .eq("user_id", userId),
+        supabase
+          .from("savings_goals")
+          .select("*")
+          .eq("user_id", userId),
       ]);
-      setEntries(entriesRes);
-      setAccounts(accountsRes.map((a) => ({ ...a, group: a.group || "cash" })));
-      setExpCats(expCatsRes);
-      setIncCats(incCatsRes);
-      setBudgets(budgetsRes);
-      setSavingsGoals(goalsRes);
+
+      // Normalize snake_case from Supabase to camelCase for components
+      setEntries(
+        (entriesRes || []).map((e) => ({
+          ...e,
+          accountId: e.account_id,
+          userId: e.user_id,
+          isTransfer: e.is_transfer,
+        }))
+      );
+      setAccounts(
+        (accountsRes || []).map((a) => ({
+          ...a,
+          userId: a.user_id,
+          group: a.group || "cash",
+        }))
+      );
+      setExpCats(expCatsRes || []);
+      setIncCats(incCatsRes || []);
+      setBudgets(
+        (budgetsRes || []).map((b) => ({
+          ...b,
+          userId: b.user_id,
+        }))
+      );
+      setSavingsGoals(
+        (goalsRes || []).map((g) => ({
+          ...g,
+          userId: g.user_id,
+          accountId: g.account_id,
+        }))
+      );
     } catch (err) {
       console.error("Failed to load shared data:", err);
     } finally {
@@ -161,8 +229,8 @@ export default function App() {
   }, [userId]);
 
   useEffect(() => {
-    loadShared();
-  }, [loadShared]);
+    if (userId) loadShared();
+  }, [loadShared, userId]);
 
   // ── Unified AI Brain ───────────────────────────────────────────
   const ai = useAI({
@@ -179,15 +247,13 @@ export default function App() {
       setBudgets((p) => (typeof u === "function" ? u(p) : u)),
     onSavingsGoalsChange: (u) =>
       setSavingsGoals((p) => (typeof u === "function" ? u(p) : u)),
-    onBillsChange: (u) => setBills((p) => (typeof u === "function" ? u(p) : u)),
+    onBillsChange: () => {},
   });
 
   // ── Account balances ───────────────────────────────────────────
   const accountBalances = useMemo(() => {
     const map = {};
-    accounts.forEach((a) => {
-      map[a.id] = 0;
-    });
+    accounts.forEach((a) => { map[a.id] = 0; });
     entries.forEach((e) => {
       if (Object.prototype.hasOwnProperty.call(map, e.accountId)) {
         map[e.accountId] += e.type === "income" ? e.amount : -e.amount;
@@ -198,13 +264,41 @@ export default function App() {
 
   // ── Auth ───────────────────────────────────────────────────────
   const handleLogin = (u) => setUser(u);
-  const handleLogout = () => {
-    pb.authStore.clear();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
     setEntries([]);
     setAccounts([]);
+    setExpCats([]);
+    setIncCats([]);
+    setBudgets([]);
+    setSavingsGoals([]);
     setAppReady(false);
   };
+
+  const handleUserUpdate = (updated) => setUser(updated);
+
+  // ── Show nothing until auth is checked ─────────────────────────
+  if (!authChecked) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          background: "var(--bg)",
+          color: "var(--text-muted)",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <span style={{ fontSize: 40, color: "var(--accent)" }}>⬡</span>
+        <p style={{ fontSize: 13 }}>Loading...</p>
+      </div>
+    );
+  }
 
   if (!user) return <Login onLogin={handleLogin} />;
 
@@ -267,7 +361,7 @@ export default function App() {
         return (
           <Settings
             user={user}
-            onUserUpdate={(updated) => setUser(updated)}
+            onUserUpdate={handleUserUpdate}
             onLogout={handleLogout}
           />
         );
@@ -279,7 +373,6 @@ export default function App() {
   // ── Render ─────────────────────────────────────────────────────
   return (
     <div className="app-shell">
-      {/* Global Transfer Modal — works from any tab */}
       {showTransfer && (
         <TransferModal
           accounts={accounts}
@@ -294,10 +387,7 @@ export default function App() {
 
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
-         
-        }}
+        setActiveTab={setActiveTab}
         user={user}
         onLogout={handleLogout}
         theme={theme}

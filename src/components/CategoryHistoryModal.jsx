@@ -1,16 +1,6 @@
 import { useEffect, useRef, useMemo } from "react";
+import ChartJsLoader from "./Chart/ChartJsLoader";
 
-function ChartJsLoader() {
-  useEffect(() => {
-    if (window.Chart) return;
-    const script = document.createElement("script");
-    script.src =
-      "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
-    script.async = true;
-    document.head.appendChild(script);
-  }, []);
-  return null;
-}
 
 /**
  * CategoryHistoryModal
@@ -266,7 +256,7 @@ export default function CategoryHistoryModal({
             {/* Transaction list */}
             <div style={{ display: "flex", flexDirection: "column" }}>
               {catEntries.slice(0, 20).map((e) => {
-                const acc = accounts.find((a) => a.id === e.accountId);
+                const acc = accounts.find((a) => a.id === e.account_id);
                 return (
                   <div
                     key={e.id}

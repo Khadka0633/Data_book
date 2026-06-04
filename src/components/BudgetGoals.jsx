@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import pb from "../pb";
+import supabase from "../supabase";
 
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 const GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
@@ -35,7 +35,6 @@ export default function BudgetGoals({
   savingsGoals: propGoals,
   onBudgetsChange,
   onSavingsGoalsChange,
-  ai,
 }) {
   const today = new Date().toISOString().split("T")[0];
   const thisMonth = today.slice(0, 7);
@@ -70,18 +69,25 @@ export default function BudgetGoals({
   const [aiGenerated, setAiGenerated] = useState(false);
   const [showAiSheet, setShowAiSheet] = useState(false);
 
+  // ── Load extra data (accounts + optionally budgets/goals) ────────
   useEffect(() => {
     const loadExtra = async () => {
       try {
-        const [accs, ...rest] = await Promise.all([
-          pb.collection("accounts").getFullList({ filter: `userId = '${userId}'` }).catch(() => []),
-          ...(!propBudgets ? [pb.collection("budgets").getFullList({ filter: `userId = '${userId}'` }).catch(() => [])] : []),
-          ...(!propGoals ? [pb.collection("savings_goals").getFullList({ filter: `userId = '${userId}'` }).catch(() => [])] : []),
-        ]);
+        const promises = [
+          supabase.from("accounts").select("*").eq("user_id", userId),
+        ];
+        if (!propBudgets) promises.push(supabase.from("budgets").select("*").eq("user_id", userId));
+        if (!propGoals) promises.push(supabase.from("savings_goals").select("*").eq("user_id", userId));
+
+        const results = await Promise.all(promises);
+
+        const accs = results[0].data || [];
         setAccounts(accs);
-        if (!propBudgets && rest[0]) setBudgets(rest[0]);
-        if (!propGoals && rest[1]) setSavingsGoals(rest[1]);
         if (accs.length) setSForm((f) => ({ ...f, accountId: accs[0].id }));
+
+        let idx = 1;
+        if (!propBudgets) { setBudgets(results[idx]?.data || []); idx++; }
+        if (!propGoals)   { setSavingsGoals(results[idx]?.data || []); }
       } catch (err) {
         console.error(err);
       } finally {
@@ -91,9 +97,11 @@ export default function BudgetGoals({
     loadExtra();
   }, [userId]);
 
+  // ── Derived stats ────────────────────────────────────────────────
   const monthSpend = useMemo(() => {
     const map = {};
-    entries.filter((e) => e.type === "expense" && !e.isTransfer && e.date.slice(0, 7) === thisMonth)
+    entries
+      .filter((e) => e.type === "expense" && !e.is_transfer && e.date.slice(0, 7) === thisMonth)
       .forEach((e) => { map[e.category] = (map[e.category] || 0) + e.amount; });
     return map;
   }, [entries, thisMonth]);
@@ -105,7 +113,8 @@ export default function BudgetGoals({
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     });
     const catMonthly = {};
-    entries.filter((e) => e.type === "expense" && !e.isTransfer && months.includes(e.date.slice(0, 7)))
+    entries
+      .filter((e) => e.type === "expense" && !e.is_transfer && months.includes(e.date.slice(0, 7)))
       .forEach((e) => {
         if (!catMonthly[e.category]) catMonthly[e.category] = {};
         const m = e.date.slice(0, 7);
@@ -120,9 +129,9 @@ export default function BudgetGoals({
   }, [entries]);
 
   const syncBudgets = (updated) => { setBudgets(updated); onBudgetsChange?.(updated); };
-  const syncGoals = (updated) => { setSavingsGoals(updated); onSavingsGoalsChange?.(updated); };
+  const syncGoals   = (updated) => { setSavingsGoals(updated); onSavingsGoalsChange?.(updated); };
 
-  // ── AI ────────────────────────────────────────────────────────────
+  // ── AI Budget Suggester ──────────────────────────────────────────
   const generateAiBudgets = async () => {
     setAiLoading(true);
     setAiError("");
@@ -134,7 +143,8 @@ export default function BudgetGoals({
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       });
       const catMonthly = {};
-      entries.filter((e) => e.type === "expense" && !e.isTransfer && months.includes(e.date.slice(0, 7)))
+      entries
+        .filter((e) => e.type === "expense" && !e.is_transfer && months.includes(e.date.slice(0, 7)))
         .forEach((e) => {
           if (!catMonthly[e.category]) catMonthly[e.category] = { months: {}, total: 0, count: 0 };
           const m = e.date.slice(0, 7);
@@ -142,6 +152,7 @@ export default function BudgetGoals({
           catMonthly[e.category].total += e.amount;
           catMonthly[e.category].count += 1;
         });
+
       const alreadyBudgeted = budgets.map((b) => b.category);
       const historyLines = Object.entries(catMonthly)
         .filter(([cat]) => !alreadyBudgeted.includes(cat))
@@ -151,16 +162,25 @@ export default function BudgetGoals({
           return `${cat}: avg रु${avg}/month (${monthVals})`;
         }).join("\n");
 
-      if (!historyLines) { setAiError("All categories already have budgets, or not enough history."); setAiLoading(false); return; }
+      if (!historyLines) {
+        setAiError("All categories already have budgets, or not enough history.");
+        setAiLoading(false);
+        return;
+      }
 
-      const thisMonthIncome = entries.filter((e) => e.type === "income" && !e.isTransfer && e.date.slice(0, 7) === thisMonth).reduce((s, e) => s + e.amount, 0);
+      const thisMonthIncome = entries
+        .filter((e) => e.type === "income" && !e.is_transfer && e.date.slice(0, 7) === thisMonth)
+        .reduce((s, e) => s + e.amount, 0);
 
       const res = await fetch(GROQ_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
         body: JSON.stringify({
           model: GROQ_MODEL,
-          messages: [{ role: "user", content: `You are a personal finance advisor. Analyze spending history and suggest monthly budget limits.\nMONTHLY INCOME: रु${thisMonthIncome.toLocaleString()}\nSPENDING HISTORY (last 3 months):\n${historyLines}\nRespond ONLY with a JSON array:\n[{"category":"name","suggested":number,"avg":number,"reason":"short reason","trend":"stable|increasing|decreasing"}]` }],
+          messages: [{
+            role: "user",
+            content: `You are a personal finance advisor. Analyze spending history and suggest monthly budget limits.\nMONTHLY INCOME: रु${thisMonthIncome.toLocaleString()}\nSPENDING HISTORY (last 3 months):\n${historyLines}\nRespond ONLY with a JSON array:\n[{"category":"name","suggested":number,"avg":number,"reason":"short reason","trend":"stable|increasing|decreasing"}]`,
+          }],
           temperature: 0.4, max_tokens: 1000,
         }),
       });
@@ -181,15 +201,24 @@ export default function BudgetGoals({
 
   const applySuggestion = async (s) => {
     if (budgets.find((b) => b.category === s.category)) return;
-    const created = await pb.collection("budgets").create({ userId, category: s.category, limit: s.suggested });
-    syncBudgets([...budgets, created]);
+    const { data, error } = await supabase
+      .from("budgets")
+      .insert({ user_id: userId, category: s.category, limit: s.suggested })
+      .select()
+      .single();
+    if (error) { console.error(error); return; }
+    syncBudgets([...budgets, data]);
     setAiSuggestions((prev) => prev.filter((x) => x.category !== s.category));
   };
 
   const applyAllSuggestions = async () => {
     for (const s of aiSuggestions.filter((s) => !budgets.find((b) => b.category === s.category))) {
-      const created = await pb.collection("budgets").create({ userId, category: s.category, limit: s.suggested });
-      syncBudgets((prev) => [...(Array.isArray(prev) ? prev : budgets), created]);
+      const { data, error } = await supabase
+        .from("budgets")
+        .insert({ user_id: userId, category: s.category, limit: s.suggested })
+        .select()
+        .single();
+      if (!error) syncBudgets([...budgets, data]);
     }
     setAiSuggestions([]);
     setShowAiSheet(false);
@@ -202,8 +231,13 @@ export default function BudgetGoals({
     if (budgets.find((b) => b.category === bForm.category)) return setBError("Budget already exists.");
     setBSaving(true);
     try {
-      const created = await pb.collection("budgets").create({ userId, category: bForm.category, limit: +bForm.limit });
-      syncBudgets([...budgets, created]);
+      const { data, error } = await supabase
+        .from("budgets")
+        .insert({ user_id: userId, category: bForm.category, limit: +bForm.limit })
+        .select()
+        .single();
+      if (error) throw error;
+      syncBudgets([...budgets, data]);
       setBForm({ category: "", limit: "" });
       setBError("");
       setShowBudgetSheet(false);
@@ -211,18 +245,30 @@ export default function BudgetGoals({
   };
 
   const deleteBudget = async (id) => {
-    await pb.collection("budgets").delete(id);
+    const { error } = await supabase.from("budgets").delete().eq("id", id);
+    if (error) { console.error(error); return; }
     syncBudgets(budgets.filter((b) => b.id !== id));
   };
 
-  // ── Savings CRUD ─────────────────────────────────────────────────
+  // ── Savings Goal CRUD ────────────────────────────────────────────
   const addSavingsGoal = async () => {
     if (!sForm.name.trim()) return setSError("Enter a name.");
     if (!sForm.target || +sForm.target <= 0) return setSError("Enter a valid target.");
     setSSaving(true);
     try {
-      const created = await pb.collection("savings_goals").create({ userId, name: sForm.name.trim(), target: +sForm.target, current: +sForm.current || 0, accountId: sForm.accountId });
-      syncGoals([...savingsGoals, created]);
+      const { data, error } = await supabase
+        .from("savings_goals")
+        .insert({
+          user_id:    userId,
+          name:       sForm.name.trim(),
+          target:     +sForm.target,
+          current:    +sForm.current || 0,
+          account_id: sForm.accountId || null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      syncGoals([...savingsGoals, data]);
       setSForm((f) => ({ ...f, name: "", target: "", current: "" }));
       setSError("");
       setShowGoalSheet(false);
@@ -230,18 +276,26 @@ export default function BudgetGoals({
   };
 
   const updateGoalProgress = async (id, newCurrent) => {
-    const updated = await pb.collection("savings_goals").update(id, { current: +newCurrent });
-    syncGoals(savingsGoals.map((g) => (g.id === id ? updated : g)));
+    const { data, error } = await supabase
+      .from("savings_goals")
+      .update({ current: +newCurrent })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) { console.error(error); return; }
+    syncGoals(savingsGoals.map((g) => (g.id === id ? data : g)));
     setEditGoal(null);
   };
 
   const deleteSavingsGoal = async (id) => {
-    await pb.collection("savings_goals").delete(id);
+    const { error } = await supabase.from("savings_goals").delete().eq("id", id);
+    if (error) { console.error(error); return; }
     syncGoals(savingsGoals.filter((g) => g.id !== id));
   };
 
+  // ── Helpers ──────────────────────────────────────────────────────
   const availableCats = expCats.filter((c) => c.name !== "Transfer" && !budgets.find((b) => b.category === c.name));
-  const trendIcon = (t) => t === "increasing" ? "📈" : t === "decreasing" ? "📉" : "➡️";
+  const trendIcon  = (t) => t === "increasing" ? "📈" : t === "decreasing" ? "📉" : "➡️";
   const trendColor = (t) => t === "increasing" ? "var(--red)" : t === "decreasing" ? "var(--green)" : "var(--text-muted)";
 
   if (loading) return (
@@ -300,13 +354,13 @@ export default function BudgetGoals({
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {budgets.map((b) => {
-              const spent = monthSpend[b.category] || 0;
-              const pct = Math.min((spent / b.limit) * 100, 100);
-              const over = spent > b.limit;
-              const near = !over && pct >= 80;
+              const spent    = monthSpend[b.category] || 0;
+              const pct      = Math.min((spent / b.limit) * 100, 100);
+              const over     = spent > b.limit;
+              const near     = !over && pct >= 80;
               const catColor = expCats.find((c) => c.name === b.category)?.color || "#6366f1";
               const barColor = over ? "var(--red)" : near ? "#f97316" : catColor;
-              const avg3 = last3MonthsAvg[b.category];
+              const avg3     = last3MonthsAvg[b.category];
               return (
                 <div key={b.id} style={{ background: "var(--surface-2)", borderRadius: "var(--radius-md)", padding: "14px 16px", border: over ? "1px solid rgba(239,68,68,0.3)" : near ? "1px solid rgba(249,115,22,0.3)" : "1px solid var(--border)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -359,9 +413,10 @@ export default function BudgetGoals({
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {savingsGoals.map((g) => {
-              const pct = Math.min((g.current / g.target) * 100, 100);
+              const pct  = Math.min((g.current / g.target) * 100, 100);
               const done = g.current >= g.target;
-              const acc = accounts.find((a) => a.id === g.accountId);
+              // Supabase uses account_id (snake_case)
+              const acc  = accounts.find((a) => a.id === g.account_id);
               return (
                 <div key={g.id} style={{ background: "var(--surface-2)", borderRadius: "var(--radius-md)", padding: "14px 16px", border: done ? "1px solid rgba(34,197,94,0.3)" : "1px solid var(--border)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
@@ -462,7 +517,7 @@ export default function BudgetGoals({
               ✓ Apply All Suggestions
             </button>
             {aiSuggestions.map((s, i) => {
-              const catColor = expCats.find((c) => c.name === s.category)?.color || "#6366f1";
+              const catColor  = expCats.find((c) => c.name === s.category)?.color || "#6366f1";
               const alreadySet = !!budgets.find((b) => b.category === s.category);
               return (
                 <div key={i} style={{ background: "var(--surface-2)", borderRadius: "var(--radius-md)", padding: "14px 16px", border: "1px solid var(--border)", opacity: alreadySet ? 0.5 : 1 }}>
