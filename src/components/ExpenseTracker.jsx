@@ -556,7 +556,7 @@ export default function ExpenseTracker({
 
             {/* Amount */}
             <FieldRow label="Amount" active={activeField === "amount"} onTap={() => setActiveField("amount")}>
-              <span style={{ fontSize: 28, fontWeight: 700, color: form.amount ? "var(--text)" : "var(--text-muted)", fontFamily: "'Syne', sans-serif" }}>
+              <span style={{ fontSize: 20, fontWeight: 500, color: form.amount ? "var(--text)" : "var(--text-muted)", fontFamily: "'Syne', sans-serif" }}>
                 {form.amount || "0"}
               </span>
             </FieldRow>
