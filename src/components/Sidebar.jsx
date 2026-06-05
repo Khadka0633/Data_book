@@ -31,6 +31,16 @@ const MOBILE_NAV = [
       </svg>
     ),
   },
+    {
+    id: "insights",
+    label: "Insights",
+    icon: (
+      <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 16v-4M12 8h.01"/>
+      </svg>
+    ),
+  },
 
 ];
 
@@ -84,6 +94,15 @@ const SIDEBAR_NAV = [
       </svg>
     ),
   },
+    {
+    id: "health",
+    label: "Health",
+    icon: (
+      <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+    ),
+  },
   {
     id: "settings",
     label: "Settings",
@@ -134,8 +153,8 @@ function HamburgerDrawer({ activeTab, setActiveTab, user, onLogout, theme, onTog
     : "?";
 
   const drawerItems = [
-    { id: "insights", label: "insights",       icon: "📈" },
     { id: "budget",   label: "Budget & Goals", icon: "💰" },
+     { id: "health",   label: "Health",         icon: "🏃" },
     { id: "settings", label: "Settings",       icon: "⚙️" },
   ];
 
@@ -298,7 +317,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, theme
     : "?";
 
   // Active state for hamburger: any of the drawer tabs
-  const drawerTabs = ["insights", "budget", "settings"];
+  const drawerTabs = [ "budget","health", "settings"];
   const hamburgerActive = drawerTabs.includes(activeTab);
 
   return (

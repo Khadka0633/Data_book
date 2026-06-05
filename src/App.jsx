@@ -8,6 +8,7 @@ import ChartsTab from "./components/ChartsTab";
 import BudgetGoals from "./components/BudgetGoals";
 import Insights from "./components/Insights";
 import Settings from "./components/Settings";
+import Health from "./components/Health";
 
 import useAI from "./useAI";
 import MultiCurrencyWidget from "./components/MultiCurrencyWidget";
@@ -356,6 +357,23 @@ export default function App() {
         );
       case "currency":
         return <MultiCurrencyWidget />;
+
+
+
+        case "health":
+  return (
+    <Health
+      userId={userId}
+      entries={entries}
+      accounts={accounts}
+    />
+  );
+
+
+
+
+
+
       case "settings":
         return (
           <Settings

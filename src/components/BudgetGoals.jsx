@@ -38,6 +38,7 @@ export default function BudgetGoals({
 }) {
   const today = new Date().toISOString().split("T")[0];
   const thisMonth = today.slice(0, 7);
+  const [showAccountPicker, setShowAccountPicker] = useState(false);
 
   const [budgets, setBudgets] = useState(propBudgets || []);
   const [savingsGoals, setSavingsGoals] = useState(propGoals || []);
@@ -87,7 +88,7 @@ export default function BudgetGoals({
 
         let idx = 1;
         if (!propBudgets) { setBudgets(results[idx]?.data || []); idx++; }
-        if (!propGoals)   { setSavingsGoals(results[idx]?.data || []); }
+        if (!propGoals) { setSavingsGoals(results[idx]?.data || []); }
       } catch (err) {
         console.error(err);
       } finally {
@@ -129,7 +130,7 @@ export default function BudgetGoals({
   }, [entries]);
 
   const syncBudgets = (updated) => { setBudgets(updated); onBudgetsChange?.(updated); };
-  const syncGoals   = (updated) => { setSavingsGoals(updated); onSavingsGoalsChange?.(updated); };
+  const syncGoals = (updated) => { setSavingsGoals(updated); onSavingsGoalsChange?.(updated); };
 
   // ── AI Budget Suggester ──────────────────────────────────────────
   const generateAiBudgets = async () => {
@@ -259,10 +260,10 @@ export default function BudgetGoals({
       const { data, error } = await supabase
         .from("savings_goals")
         .insert({
-          user_id:    userId,
-          name:       sForm.name.trim(),
-          target:     +sForm.target,
-          current:    +sForm.current || 0,
+          user_id: userId,
+          name: sForm.name.trim(),
+          target: +sForm.target,
+          current: +sForm.current || 0,
           account_id: sForm.accountId || null,
         })
         .select()
@@ -295,7 +296,7 @@ export default function BudgetGoals({
 
   // ── Helpers ──────────────────────────────────────────────────────
   const availableCats = expCats.filter((c) => c.name !== "Transfer" && !budgets.find((b) => b.category === c.name));
-  const trendIcon  = (t) => t === "increasing" ? "📈" : t === "decreasing" ? "📉" : "➡️";
+  const trendIcon = (t) => t === "increasing" ? "📈" : t === "decreasing" ? "📉" : "➡️";
   const trendColor = (t) => t === "increasing" ? "var(--red)" : t === "decreasing" ? "var(--green)" : "var(--text-muted)";
 
   if (loading) return (
@@ -354,13 +355,13 @@ export default function BudgetGoals({
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {budgets.map((b) => {
-              const spent    = monthSpend[b.category] || 0;
-              const pct      = Math.min((spent / b.limit) * 100, 100);
-              const over     = spent > b.limit;
-              const near     = !over && pct >= 80;
+              const spent = monthSpend[b.category] || 0;
+              const pct = Math.min((spent / b.limit) * 100, 100);
+              const over = spent > b.limit;
+              const near = !over && pct >= 80;
               const catColor = expCats.find((c) => c.name === b.category)?.color || "#6366f1";
               const barColor = over ? "var(--red)" : near ? "#f97316" : catColor;
-              const avg3     = last3MonthsAvg[b.category];
+              const avg3 = last3MonthsAvg[b.category];
               return (
                 <div key={b.id} style={{ background: "var(--surface-2)", borderRadius: "var(--radius-md)", padding: "14px 16px", border: over ? "1px solid rgba(239,68,68,0.3)" : near ? "1px solid rgba(249,115,22,0.3)" : "1px solid var(--border)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -413,10 +414,10 @@ export default function BudgetGoals({
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {savingsGoals.map((g) => {
-              const pct  = Math.min((g.current / g.target) * 100, 100);
+              const pct = Math.min((g.current / g.target) * 100, 100);
               const done = g.current >= g.target;
               // Supabase uses account_id (snake_case)
-              const acc  = accounts.find((a) => a.id === g.account_id);
+              const acc = accounts.find((a) => a.id === g.account_id);
               return (
                 <div key={g.id} style={{ background: "var(--surface-2)", borderRadius: "var(--radius-md)", padding: "14px 16px", border: done ? "1px solid rgba(34,197,94,0.3)" : "1px solid var(--border)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
@@ -440,13 +441,41 @@ export default function BudgetGoals({
                     <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{done ? "Goal reached! 🎉" : `रु${(g.target - g.current).toLocaleString()} to go`}</span>
                     <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{pct.toFixed(0)}%</span>
                   </div>
-                  {editGoal?.id === g.id && (
-                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      <input className="input" type="number" placeholder="Current amount" value={editGoal.current} onChange={(e) => setEditGoal((eg) => ({ ...eg, current: e.target.value }))} style={{ flex: 1 }} autoFocus />
-                      <button className="btn-primary" style={{ padding: "8px 14px" }} onClick={() => updateGoalProgress(g.id, editGoal.current)}>Save</button>
-                      <button className="btn-cancel" onClick={() => setEditGoal(null)}>✕</button>
-                    </div>
-                  )}
+
+{editGoal?.id === g.id && (
+  <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
+    <input
+      type="number"
+      placeholder="Current amount"
+      value={editGoal.current}
+      onChange={(e) => setEditGoal((eg) => ({ ...eg, current: e.target.value }))}
+      autoFocus
+      style={{
+        flex: 1, padding: "8px 12px",
+        background: "var(--bg)",
+        border: "1px solid var(--accent)",
+        borderRadius: "var(--radius-sm)",
+        color: "var(--text)", fontSize: 14,
+        outline: "none", fontFamily: "inherit",
+      }}
+    />
+    <button
+      onClick={() => updateGoalProgress(g.id, editGoal.current)}
+      style={{ padding: "8px 14px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+    >
+      Save
+    </button>
+    <button
+      onClick={() => setEditGoal(null)}
+      style={{ padding: "8px 10px", background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: 13, cursor: "pointer" }}
+    >
+      ✕
+    </button>
+  </div>
+)}
+                 
+
+
                 </div>
               );
             })}
@@ -479,7 +508,12 @@ export default function BudgetGoals({
 
       {/* ── Add Savings Goal Bottom Sheet ── */}
       {showGoalSheet && (
-        <BottomSheet title="New Savings Goal" onClose={() => { setShowGoalSheet(false); setSForm((f) => ({ ...f, name: "", target: "", current: "" })); setSError(""); }}>
+        <BottomSheet title="New Savings Goal" onClose={() => {
+          setShowGoalSheet(false);
+          setSForm((f) => ({ ...f, name: "", target: "", current: "" }));
+          setSError("");
+          setShowAccountPicker(false);
+        }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>Goal Name</label>
@@ -493,13 +527,62 @@ export default function BudgetGoals({
               <label style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>Already Saved (रु)</label>
               <input className="input" type="number" placeholder="0" value={sForm.current} onChange={(e) => setSForm((f) => ({ ...f, current: e.target.value }))} />
             </div>
+
+
+
             {accounts.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>Linked Account</label>
-                <select className="input" value={sForm.accountId} onChange={(e) => setSForm((f) => ({ ...f, accountId: e.target.value }))}>
-                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
-                </select>
+                <button
+                  onClick={() => setShowAccountPicker((v) => !v)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "10px 14px", borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface-2)",
+                    color: "var(--text)", fontSize: 14, cursor: "pointer",
+                  }}
+                >
+                  <span>
+                    {accounts.find((a) => a.id === sForm.accountId)?.icon}{" "}
+                    {accounts.find((a) => a.id === sForm.accountId)?.name || "Select account"}
+                  </span>
+                  <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                    {showAccountPicker ? "▲" : "▼"}
+                  </span>
+                </button>
+
+                {/* Dropdown */}
+                {showAccountPicker && (
+                  
+                  <div 
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", overflow: "hidden" }}>
+                    {accounts.map((a) => (
+                      <button
+                        key={a.id}
+                       onClick={(e) => { e.stopPropagation(); setSForm((f) => ({ ...f, accountId: a.id })); setShowAccountPicker(false); }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          width: "100%", padding: "10px 14px",
+                          border: "none", borderBottom: "1px solid var(--border)",
+                          background: sForm.accountId === a.id ? "rgba(99,102,241,0.12)" : "var(--surface-2)",
+                          color: sForm.accountId === a.id ? "var(--accent)" : "var(--text)",
+                          fontSize: 14, fontWeight: 500, cursor: "pointer", textAlign: "left",
+                        }}
+                      >
+                        <span>{a.icon}</span>
+                        <span style={{ flex: 1 }}>{a.name}</span>
+                        {sForm.accountId === a.id && <span style={{ fontSize: 12 }}>✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}            
               </div>
+
+
+
+
             )}
             {sError && <p style={{ color: "var(--red)", fontSize: 12 }}>{sError}</p>}
             <button className="btn-primary" onClick={addSavingsGoal} disabled={sSaving} style={{ marginTop: 4 }}>
@@ -517,7 +600,7 @@ export default function BudgetGoals({
               ✓ Apply All Suggestions
             </button>
             {aiSuggestions.map((s, i) => {
-              const catColor  = expCats.find((c) => c.name === s.category)?.color || "#6366f1";
+              const catColor = expCats.find((c) => c.name === s.category)?.color || "#6366f1";
               const alreadySet = !!budgets.find((b) => b.category === s.category);
               return (
                 <div key={i} style={{ background: "var(--surface-2)", borderRadius: "var(--radius-md)", padding: "14px 16px", border: "1px solid var(--border)", opacity: alreadySet ? 0.5 : 1 }}>
