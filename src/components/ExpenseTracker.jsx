@@ -479,11 +479,7 @@ export default function ExpenseTracker({
         );
 
       case "note":
-        return  (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 60, color: "var(--text-muted)", fontSize: 12 }}>
-            ↑ Use the keyboard above to type your note
-          </div>
-        );
+        return  null
 
       case "amount":
       default:

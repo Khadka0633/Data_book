@@ -7,10 +7,9 @@ export default function FieldRow({ label, active, onTap, showChevron, noBorder, 
       onClick={onTap}
       style={{
         display: "flex", alignItems: "center",
-        padding: "10px 0",
+        padding: "13px 0",
         borderBottom: noBorder ? "none" : "1px solid var(--border)",
         cursor: "pointer",
-        borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent",
         paddingLeft: 10,
         marginLeft: -10,
         transition: "all 0.15s",
